@@ -4,10 +4,25 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/index.tsx"
+    "dev": "bun run --watch src/index.tsx",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@eslint/js": "^9.16.0",
+    "@types/bun": "latest",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "eslint": "^9.16.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.1",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.16.0",
+    "vitest": "^2.1.5"
   },
   "peerDependencies": {
     "typescript": "^5"
