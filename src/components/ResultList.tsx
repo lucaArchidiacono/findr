@@ -19,7 +19,7 @@ export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoad
         flexGrow={1}
         justifyContent="center"
         alignItems="center"
-        borderStyle="round"
+        borderStyle="rounded"
         borderColor="#333333"
       >
         <text attributes={TextAttributes.DIM}>Searching…</text>
@@ -33,7 +33,7 @@ export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoad
         flexGrow={1}
         justifyContent="center"
         alignItems="center"
-        borderStyle="round"
+        borderStyle="rounded"
         borderColor="#333333"
       >
         <text attributes={TextAttributes.DIM}>No results yet. Try a query or :help.</text>
@@ -44,7 +44,7 @@ export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoad
   return (
     <scrollbox
       flexGrow={1}
-      borderStyle="round"
+      borderStyle="rounded"
       borderColor="#333333"
       paddingLeft={1}
       paddingRight={1}
@@ -65,11 +65,20 @@ export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoad
             paddingBottom={1}
             backgroundColor={isSelected ? "#1d1f21" : "transparent"}
           >
-            <text attributes={isSelected ? TextAttributes.BOLD : undefined}>
-              [{result.pluginDisplayName}] {result.title}
-            </text>
-            <text color="#bbbbbb">{truncate(result.description, MAX_DESCRIPTION_LENGTH)}</text>
-            <text color="#6d9bf1">{truncateUrl(result.url, MAX_URL_LENGTH)}</text>
+            <box backgroundColor={isSelected ? "#bbbbbb" : "transparent"}>
+              <text attributes={TextAttributes.BOLD}>
+                [{result.pluginDisplayName}] {result.title}
+              </text>
+              <text attributes={TextAttributes.DIM}>
+                {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
+              </text>
+              <text attributes={TextAttributes.UNDERLINE}>
+                {truncateUrl(result.url, MAX_URL_LENGTH)}
+              </text>
+            </box>
+
+            {/* <box backgroundColor={"#bbbbbb"}></box>
+            <box backgroundColor={"#6d9bf1"}></box> */}
           </box>
         );
       })}

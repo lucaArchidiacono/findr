@@ -29,15 +29,13 @@ export const SearchBar: FC<SearchBarProps> = ({
     <box
       flexDirection="row"
       alignItems="center"
-      borderStyle="round"
+      borderStyle="rounded"
       borderColor="#555555"
       paddingLeft={1}
       paddingRight={1}
       height={3}
     >
-      <text color="#888888" marginRight={1}>
-        {isLoading ? "…" : ">"}
-      </text>
+      <text marginRight={1}>{isLoading ? "…" : ">"}</text>
       <input
         value={value}
         placeholder={placeholder}

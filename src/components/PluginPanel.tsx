@@ -17,7 +17,7 @@ export const PluginPanel: FC<PluginPanelProps> = ({ plugins, selectedIndex, visi
     <scrollbox
       width={32}
       marginLeft={1}
-      borderStyle="round"
+      borderStyle="rounded"
       borderColor="#444444"
       paddingLeft={1}
       paddingRight={1}
