@@ -1,5 +1,3 @@
-import type { FC } from "react";
-
 interface SearchBarProps {
   value: string;
   placeholder?: string;
@@ -9,14 +7,14 @@ interface SearchBarProps {
   onSubmit(): void;
 }
 
-export const SearchBar: FC<SearchBarProps> = ({
+export const SearchBar = ({
   value,
   placeholder = "Search the web or type :command",
   isLoading,
   focused,
   onChange,
   onSubmit,
-}) => {
+}: SearchBarProps) => {
   const handleInput = (nextValue: unknown) => {
     onChange(String(nextValue ?? ""));
   };

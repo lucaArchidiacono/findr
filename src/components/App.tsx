@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
-import { render, useKeyboard, useRenderer } from "@opentui/react";
+import { useKeyboard, useRenderer } from "@opentui/react";
 import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";

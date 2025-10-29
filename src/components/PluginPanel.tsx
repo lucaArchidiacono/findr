@@ -1,5 +1,4 @@
 import { TextAttributes } from "@opentui/core";
-import type { FC } from "react";
 import type { PluginRegistration } from "../core/plugins";
 
 interface PluginPanelProps {
@@ -8,7 +7,7 @@ interface PluginPanelProps {
   visible: boolean;
 }
 
-export const PluginPanel: FC<PluginPanelProps> = ({ plugins, selectedIndex, visible }) => {
+export const PluginPanel  = ({ plugins, selectedIndex, visible }: PluginPanelProps) => {
   if (!visible) {
     return null;
   }

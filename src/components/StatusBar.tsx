@@ -1,5 +1,4 @@
 import { TextAttributes } from "@opentui/core";
-import type { FC } from "react";
 import type { SortOrder } from "../core/sorting";
 import type { AppState } from "../state/appState";
 
@@ -16,12 +15,12 @@ const paneLabel: Record<AppState["activePane"], string> = {
   plugins: "Plugins",
 };
 
-export const StatusBar: FC<StatusBarProps> = ({
+export const StatusBar = ({
   sortOrder,
   enabledPlugins,
   totalPlugins,
   activePane,
-}) => {
+}: StatusBarProps) => {
   return (
     <box
       flexDirection="row"

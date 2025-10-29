@@ -1,5 +1,4 @@
 import { TextAttributes } from "@opentui/core";
-import type { FC } from "react";
 import type { AggregatedSearchResult } from "../core/plugins";
 import { truncate, truncateUrl } from "../utils/formatting";
 
@@ -12,7 +11,7 @@ interface ResultListProps {
 const MAX_DESCRIPTION_LENGTH = 120;
 const MAX_URL_LENGTH = 60;
 
-export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoading }) => {
+export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProps) => {
   if (isLoading) {
     return (
       <box

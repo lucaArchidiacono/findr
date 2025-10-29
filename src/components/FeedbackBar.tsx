@@ -1,5 +1,4 @@
 import { TextAttributes } from "@opentui/core";
-import type { FC } from "react";
 import type { CommandFeedback } from "../state/appState";
 
 interface FeedbackBarProps {
@@ -13,7 +12,7 @@ const toneColor: Record<CommandFeedback["tone"], string> = {
   error: "#ff6b6b",
 };
 
-export const FeedbackBar: FC<FeedbackBarProps> = ({ feedback, errorMessage, pluginErrors }) => {
+export const FeedbackBar = ({ feedback, errorMessage, pluginErrors }: FeedbackBarProps) => {
   const pluginErrorMessage = pluginErrors.join(" | ");
 
   if (!feedback && !errorMessage && pluginErrors.length === 0) {
@@ -26,23 +25,23 @@ export const FeedbackBar: FC<FeedbackBarProps> = ({ feedback, errorMessage, plug
 
   if (feedback) {
     return (
-      <box height={1} paddingLeft={1}>
-        <text color={toneColor[feedback.tone]}>{feedback.message}</text>
+      <box backgroundColor={toneColor[feedback.tone]} height={1} paddingLeft={1}>
+        <text>{feedback.message}</text>
       </box>
     );
   }
 
   if (errorMessage) {
     return (
-      <box height={1} paddingLeft={1}>
-        <text color="#ff6b6b">{errorMessage}</text>
+      <box backgroundColor="#ff6b6b" height={1} paddingLeft={1}>
+        <text>{errorMessage}</text>
       </box>
     );
   }
 
   return (
-    <box height={1} paddingLeft={1}>
-      <text color="#ffa94d">{pluginErrorMessage}</text>
+    <box backgroundColor="#ffa94d" height={1} paddingLeft={1}>
+      <text>{pluginErrorMessage}</text>
     </box>
   );
 };
