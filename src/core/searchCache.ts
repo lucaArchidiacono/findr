@@ -1,5 +1,7 @@
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { access, mkdir, readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import type { SearchResult } from "./plugins";
 
 const CACHE_FILE_VERSION = 1;
@@ -108,6 +110,37 @@ export interface SearchCacheOptions {
   ttlMs?: number;
 }
 
+const bunAvailable = (): boolean => typeof Bun !== "undefined";
+
+const fileExists = async (path: string): Promise<boolean> => {
+  if (bunAvailable()) {
+    const file = Bun.file(path);
+    return await file.exists();
+  }
+  try {
+    await access(path, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const readTextFile = async (path: string): Promise<string> => {
+  if (bunAvailable()) {
+    return await Bun.file(path).text();
+  }
+  return await fsReadFile(path, "utf-8");
+};
+
+const writeTextFile = async (path: string, data: string): Promise<void> => {
+  if (bunAvailable()) {
+    await Bun.write(path, data, { createPath: true });
+    return;
+  }
+  await mkdir(dirname(path), { recursive: true });
+  await fsWriteFile(path, data, "utf-8");
+};
+
 export class SearchCache {
   private readonly path: string;
   private readonly ttlMs?: number;
@@ -117,9 +150,6 @@ export class SearchCache {
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(options: SearchCacheOptions = {}) {
-    if (typeof Bun === "undefined") {
-      throw new Error("SearchCache requires the Bun runtime.");
-    }
     this.path = resolveCacheFilePath(options.path);
     this.ttlMs = resolveTtl(options.ttlMs);
   }
@@ -176,14 +206,13 @@ export class SearchCache {
   }
 
   private async loadFromDisk(): Promise<void> {
-    const file = Bun.file(this.path);
-    const exists = await file.exists();
+    const exists = await fileExists(this.path);
     if (!exists) {
       return;
     }
 
     try {
-      const serialized = await file.text();
+      const serialized = await readTextFile(this.path);
       const parsed = JSON.parse(serialized) as CacheFileFormat;
 
       if (parsed && parsed.version === CACHE_FILE_VERSION && parsed.entries) {
@@ -249,7 +278,7 @@ export class SearchCache {
     };
 
     const serialized = JSON.stringify(payload, null, 2);
-    await Bun.write(this.path, serialized, { createPath: true });
+    await writeTextFile(this.path, serialized);
   }
 }
 

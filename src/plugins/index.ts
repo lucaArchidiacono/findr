@@ -1,6 +1,7 @@
 import { PluginManager } from "../core/plugins";
 import SearchCache from "../core/searchCache";
 import bravePlugin from "./brave";
+import perplexityPlugin from "./perplexity";
 import mockPlugin from "./mock";
 
 export const createPluginManager = (): PluginManager => {
@@ -8,6 +9,7 @@ export const createPluginManager = (): PluginManager => {
   const manager = new PluginManager({ cache });
 
   manager.register(bravePlugin);
+  manager.register(perplexityPlugin);
   manager.register(mockPlugin);
 
   return manager;
@@ -15,6 +17,7 @@ export const createPluginManager = (): PluginManager => {
 
 export const builtInPluginIds = {
   brave: bravePlugin.id,
+  perplexity: perplexityPlugin.id,
   mock: mockPlugin.id,
 } as const;
 
