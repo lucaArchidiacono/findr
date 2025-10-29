@@ -60,3 +60,14 @@ The sample `mock` plugin shows the minimal shape required for testing without li
 When integrating remote providers (Brave, Exa, Perplexity, etc.) prefer returning normalised
 results (`title`, `description`, `url`, optional `score` and `timestamp`) so the UI can surface
 them consistently.
+
+### Built-in Plugins
+
+- Local Mock (`:toggle mock`) — deterministic demo data and zero configuration.
+- Brave Search (`:toggle brave`) — remote results via the Brave Search API. Supply `BRAVE_API_KEY`
+  in your environment before enabling:
+
+  ```bash
+  export BRAVE_API_KEY="your-token-here"
+  bun run dev
+  ```

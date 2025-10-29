@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { PluginManager, type SearchPlugin } from "./plugins";
+import SearchCache from "./searchCache";
 
 const createStubPlugin = (
   id: string,
@@ -114,7 +118,43 @@ describe("PluginManager", () => {
     const response = await promise;
     expect(response.results).toHaveLength(0);
     expect(response.errors).toHaveLength(1);
-    expect(response.errors[0].pluginId).toBe("slow");
+    expect(response?.errors?.[0]?.pluginId).toBe("slow");
     expect(abortSpy).toHaveBeenCalledOnce();
+  });
+
+  it("returns cached results when available", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "findr-cache-"));
+    const cachePath = join(dir, "cache.json");
+    const cache = new SearchCache({ path: cachePath, ttlMs: 0 });
+    const searchMock = vi.fn().mockResolvedValue([
+      {
+        title: "Cached result",
+        description: "From plugin",
+        url: "https://example.com/cached",
+      },
+    ]);
+
+    const manager = new PluginManager({ cache });
+    const plugin: SearchPlugin = {
+      id: "cached",
+      displayName: "Cached Plugin",
+      async search(args) {
+        return searchMock(args);
+      },
+    };
+
+    manager.register(plugin);
+
+    try {
+      const first = await manager.search("repeat");
+      expect(first.results).toHaveLength(1);
+      expect(searchMock).toHaveBeenCalledTimes(1);
+
+      const second = await manager.search("repeat");
+      expect(second.results).toHaveLength(1);
+      expect(searchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

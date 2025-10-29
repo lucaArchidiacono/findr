@@ -7,8 +7,8 @@ future sessions can resume quickly.
 
 - **Core architecture** – `src/core/plugins.ts`, `src/core/sorting.ts`: plugin contracts, manager,
   and result sorting utilities.
-- **Plugins** – `src/plugins/index.ts`, `src/plugins/mock.ts`: plugin registry with a development
-  mock provider.
+- **Plugins** – `src/plugins/index.ts`, `src/plugins/mock.ts`, `src/plugins/brave.ts`: plugin
+  registry with a local mock provider and Brave Search integration (requires `BRAVE_API_KEY`).
 - **State management** – `src/state/appState.ts`, `src/state/commandParser.ts`: reducer, pane
   tracking, command parsing, and feedback handling.
 - **UI components** – `src/components/App.tsx` orchestrates SearchBar, ResultList, PluginPanel,
@@ -32,7 +32,7 @@ bun test
 
 ## Suggested Next Steps
 
-1. **Integrate real providers** – add plugins (e.g. Brave, Exa, Perplexity, Meilisearch) that read
+1. **Integrate real providers** – add plugins (e.g. Exa, Perplexity, Meilisearch) that read
    credentials from `Bun.env`, normalise responses, and register them in `src/plugins/index.ts`.
 2. **Persist preferences** – store enabled plugin ids and sort order on disk (`~/.findr.json`) and
    load them when the TUI starts, updating the reducer accordingly.

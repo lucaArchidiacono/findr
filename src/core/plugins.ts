@@ -1,3 +1,5 @@
+import type SearchCache from "./searchCache";
+
 export interface SearchQuery {
   query: string;
   signal: AbortSignal;
@@ -51,8 +53,22 @@ const createResultId = (pluginId: string, index: number) => {
   return `${pluginId}-${index}-${suffix}`;
 };
 
+
+
+export interface PluginManagerOptions {
+  cache?: SearchCache;
+  logger?: Pick<Console, "warn">;
+}
+
 export class PluginManager {
   private readonly plugins = new Map<string, PluginRegistration>();
+  private readonly cache?: SearchCache;
+  private readonly logger: Pick<Console, "warn">;
+
+  constructor(options: PluginManagerOptions = {}) {
+    this.cache = options.cache;
+    this.logger = options.logger ?? console;
+  }
 
   register(plugin: SearchPlugin): void {
     if (this.plugins.has(plugin.id)) {
@@ -133,11 +149,30 @@ export class PluginManager {
       const settledResults = await Promise.allSettled(
         enabledPlugins.map(async (registration) => {
           const { plugin } = registration;
+
+          if (controllerSignal.aborted) {
+            throw controllerSignal.reason ?? new Error("Search aborted");
+          }
+
+          if (this.cache) {
+            const cachedResults = await this.getCachedResults(plugin.id, query, options.limit);
+            if (controllerSignal.aborted) {
+              throw controllerSignal.reason ?? new Error("Search aborted");
+            }
+            if (cachedResults) {
+              return { registration, results: cachedResults };
+            }
+          }
+
           const results = await plugin.search({
             query,
             signal: controllerSignal,
             limit: options.limit,
           });
+
+          if (this.cache) {
+            await this.storeResultsInCache(plugin.id, query, options.limit, results);
+          }
           return { registration, results };
         }),
       );
@@ -175,6 +210,45 @@ export class PluginManager {
       return { results: aggregated, errors };
     } finally {
       options.signal?.removeEventListener("abort", handleExternalAbort);
+    }
+  }
+
+  private async getCachedResults(
+    pluginId: string,
+    query: string,
+    limit: number | undefined,
+  ): Promise<SearchResult[] | undefined> {
+    if (!this.cache) {
+      return undefined;
+    }
+
+    try {
+      return await this.cache.get({ pluginId, query, limit });
+    } catch (error) {
+      this.logger.warn?.(
+        `Failed to read cache for plugin "${pluginId}":`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return undefined;
+    }
+  }
+
+  private async storeResultsInCache(
+    pluginId: string,
+    query: string,
+    limit: number | undefined,
+    results: SearchResult[],
+  ): Promise<void> {
+    if (!this.cache) {
+      return;
+    }
+    try {
+      await this.cache.set({ pluginId, query, limit, results });
+    } catch (error) {
+      this.logger.warn?.(
+        `Failed to update cache for plugin "${pluginId}":`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 }

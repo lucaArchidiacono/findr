@@ -1,0 +1,131 @@
+import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
+
+const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const API_KEY_ENV = "BRAVE_API_KEY";
+const DEFAULT_RESULT_LIMIT = 10;
+
+const resolveApiKey = (): string | undefined => {
+  if (typeof Bun !== "undefined" && Bun.env) {
+    return Bun.env[API_KEY_ENV];
+  }
+
+  if (typeof process !== "undefined" && "env" in process) {
+    return process.env[API_KEY_ENV];
+  }
+
+  return undefined;
+};
+
+interface BraveWebResult {
+  title?: string;
+  url?: string;
+  description?: string;
+  rank?: number;
+  page_age?: string;
+  profile?: Record<string, unknown> | null;
+  meta_url?: {
+    last_crawled?: string;
+    published?: string;
+  } | null;
+  [key: string]: unknown;
+}
+
+interface BraveSearchResponse {
+  web?: {
+    results?: BraveWebResult[];
+  };
+  [key: string]: unknown;
+}
+
+const parseTimestamp = (result: BraveWebResult): number | undefined => {
+  const candidates = [
+    result.page_age,
+    result.meta_url?.published,
+    result.meta_url?.last_crawled,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const timestamp = Date.parse(candidate);
+    if (!Number.isNaN(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return undefined;
+};
+
+const normalizeResult = (result: BraveWebResult): SearchResult | undefined => {
+  if (!result.title || !result.url) {
+    return undefined;
+  }
+
+  return {
+    title: result.title,
+    description: result.description ?? "",
+    url: result.url,
+    score: typeof result.rank === "number" ? result.rank : undefined,
+    timestamp: parseTimestamp(result),
+    metadata: result.profile ?? undefined,
+  };
+};
+
+const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<SearchResult[]> => {
+  if (signal.aborted) {
+    return [];
+  }
+
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    throw new Error(`Missing Brave API key. Set ${API_KEY_ENV}=... to enable the plugin.`);
+  }
+
+  const url = new URL(BRAVE_ENDPOINT);
+  url.searchParams.set("q", query);
+  url.searchParams.set("source", "web");
+  url.searchParams.set("summary", "true");
+
+  const desiredLimit = limit ?? DEFAULT_RESULT_LIMIT;
+  url.searchParams.set("count", Math.max(1, Math.min(desiredLimit, 20)).toString());
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "x-subscription-token": apiKey,
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Brave request failed (${response.status}): ${errorBody || response.statusText}`);
+    }
+
+    const data = (await response.json()) as BraveSearchResponse;
+    const results = data.web?.results ?? [];
+
+    return results
+      .map(normalizeResult)
+      .filter((item): item is SearchResult => Boolean(item))
+      .slice(0, desiredLimit);
+  } catch (error) {
+    if (signal.aborted) {
+      return [];
+    }
+
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+};
+
+const bravePlugin: SearchPlugin = {
+  id: "brave",
+  displayName: "Brave Search",
+  description: "Queries the Brave Search API (requires BRAVE_API_KEY).",
+  isEnabledByDefault: false,
+  search: braveSearch,
+};
+
+export default bravePlugin;
