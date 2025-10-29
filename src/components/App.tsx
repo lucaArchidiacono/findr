@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
-import { useKeyboard, useRenderer } from "@opentui/react";
+import { render, useKeyboard, useRenderer } from "@opentui/react";
 import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
@@ -23,7 +23,7 @@ const toFeedback = (message: string, tone: "info" | "error" = "info") =>
 const paneOrder: Pane[] = ["search", "results", "plugins"];
 
 const commandHelpText =
-  "Commands: :enable <id> · :disable <id> · :toggle <id> · :sort relevance|recency|source · :plugins · :clear";
+  "Commands -> :enable <id> · :disable <id> · :toggle <id> · :sort relevance|recency|source · :plugins · :clear";
 
 const pickOpenCommand = () => {
   switch (process.platform) {
@@ -90,7 +90,7 @@ export const App = () => {
     });
 
     const currentIndex = visiblePaneOrder.indexOf(state.activePane);
-    const nextPane = visiblePaneOrder[(currentIndex + 1) % visiblePaneOrder.length];
+    const nextPane = visiblePaneOrder[(currentIndex + 1) % visiblePaneOrder.length]!;
     setPane(nextPane);
   };
 
@@ -326,7 +326,7 @@ export const App = () => {
 
     if (key.ctrl && key.name === "c") {
       abortControllerRef.current?.abort();
-      renderer?.unmount?.();
+      renderer?.destroy();
       process.exit(0);
     }
 

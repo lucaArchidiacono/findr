@@ -65,7 +65,7 @@ export const ResultList: FC<ResultListProps> = ({ results, selectedIndex, isLoad
             paddingBottom={1}
             backgroundColor={isSelected ? "#1d1f21" : "transparent"}
           >
-            <box backgroundColor={isSelected ? "#bbbbbb" : "transparent"}>
+            <box backgroundColor={isSelected ? "#333333" : "transparent"}>
               <text attributes={TextAttributes.BOLD}>
                 [{result.pluginDisplayName}] {result.title}
               </text>

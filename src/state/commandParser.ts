@@ -46,10 +46,10 @@ export const parseInput = (rawInput: string): ParsedInput => {
   }
 
   const [verbRaw, ...rest] = body.split(/\s+/);
-  const verb = verbRaw.toLowerCase();
+  const verb = verbRaw?.toLowerCase();
   const remainder = rest.join(" ");
 
-  switch (verb) {
+  switch (verb ?? "") {
     case "enable":
     case "en":
       if (!remainder) {

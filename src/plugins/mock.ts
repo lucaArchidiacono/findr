@@ -5,26 +5,31 @@ const MOCK_DATA: Omit<SearchResult, "id">[] = [
     title: "Building pluggable TUIs with OpenTUI",
     description: "A step-by-step guide on architecting modular terminal UIs with plugins.",
     url: "https://example.com/guides/pluggable-tui",
+    score: 12,
   },
   {
     title: "Search API landscape in 2025",
     description: "Compare Brave, Google, Exa, and other search APIs for developer tooling.",
     url: "https://example.com/articles/search-api-landscape-2025",
+    score: 20,
   },
   {
     title: "Efficient CLI productivity workflows",
     description: "Learn how to navigate CLI applications using Vim-style motions.",
     url: "https://example.com/blog/cli-productivity",
+    score: 3,
   },
   {
     title: "Integrating vector databases with Meilisearch",
     description: "Blend keyword and semantic search results via a custom plugin architecture.",
     url: "https://example.com/tutorials/meilisearch-integration",
+    score: 0.4,
   },
   {
     title: "Prompt engineering for meta-search",
     description: "Strategies for orchestrating LLM-powered search pipelines effectively.",
     url: "https://example.com/prompts/meta-search",
+    score: 5.3,
   },
 ];
 
