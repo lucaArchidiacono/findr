@@ -1,21 +1,10 @@
 import { z } from "zod";
 import { generateObject } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import type { CoreMessage } from "ai";
+import { createPerplexity } from "@ai-sdk/perplexity";
+import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
 
 const API_KEY_ENV = "PERPLEXITY_API_KEY";
 const DEFAULT_RESULT_LIMIT = 10;
-const DEFAULT_MODEL = "pplx-70b-online"; // Perplexity online model
-
-const resolveApiKey = (): string | undefined => {
-  if (typeof Bun !== "undefined" && Bun.env) {
-    return Bun.env[API_KEY_ENV];
-  }
-  if (typeof process !== "undefined" && "env" in process) {
-    return process.env[API_KEY_ENV];
-  }
-  return undefined;
-};
 
 const ResultItemSchema = z.object({
   title: z.string().min(1),
@@ -41,36 +30,35 @@ const perplexitySearch = async ({ query, limit, signal }: SearchQuery): Promise<
     return [];
   }
 
-  const apiKey = resolveApiKey();
+  const apiKey = Bun.env[API_KEY_ENV];
   if (!apiKey) {
     throw new Error(`Missing Perplexity API key. Set ${API_KEY_ENV}=... to enable the plugin.`);
   }
 
   const desiredLimit = Math.max(1, Math.min(limit ?? DEFAULT_RESULT_LIMIT, 20));
 
-  const openai = createOpenAI({
-    baseURL: "https://api.perplexity.ai",
+  const perplexity = createPerplexity({
     apiKey,
   });
-
-  const system: CoreMessage = {
-    role: "system",
-    content:
-      "You are a web search assistant. Provide web results as structured JSON matching the schema.",
-  };
-  const user: CoreMessage = {
-    role: "user",
-    content: `Query: ${query}\nReturn up to ${desiredLimit} results. Focus on relevant, high quality sources.`,
-  };
 
   const schema = createResultSchema(desiredLimit);
 
   try {
     const { object } = await generateObject({
-      model: openai(DEFAULT_MODEL),
-      messages: [system, user],
+      model: perplexity("sonar"),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a web search assistant. Provide web results as structured JSON matching the schema.",
+        },
+        {
+          role: "user",
+          content: `Query: ${query}\nReturn up to ${desiredLimit} results. Focus on relevant, high quality sources.`,
+        },
+      ],
       schema,
-      signal,
+      abortSignal: signal,
     });
 
     const items = object.results ?? [];
