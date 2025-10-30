@@ -80,7 +80,7 @@ const perplexitySearch = async ({ query, limit, signal }: SearchQuery): Promise<
 
 const perplexityPlugin: SearchPlugin = {
   id: "perplexity",
-  displayName: "Perplexity Search",
+  displayName: "Perplexity",
   description:
     "Uses Vercel AI SDK with Zod schema to fetch structured web results (requires PERPLEXITY_API_KEY).",
   isEnabledByDefault: false,
