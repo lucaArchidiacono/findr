@@ -8,24 +8,6 @@ const CACHE_FILE_VERSION = 1;
 const CACHE_FILENAME = "search-cache.json";
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
-const getEnvValue = (key: string): string | undefined => {
-  if (typeof Bun !== "undefined" && Bun.env) {
-    const value = Bun.env[key];
-    if (value) {
-      return value;
-    }
-  }
-
-  if (typeof process !== "undefined" && "env" in process) {
-    const value = process.env[key];
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
-};
-
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value) {
     return undefined;
@@ -39,12 +21,12 @@ const resolveCacheFilePath = (explicitPath?: string): string => {
     return explicitPath;
   }
 
-  const overriddenPath = getEnvValue("FINDR_CACHE_FILE");
+  const overriddenPath = Bun.env["FINDR_CACHE_FILE"];
   if (overriddenPath) {
     return overriddenPath;
   }
 
-  const overriddenDir = getEnvValue("FINDR_CACHE_DIR");
+  const overriddenDir = Bun.env["FINDR_CACHE_DIR"];
   if (overriddenDir) {
     return join(overriddenDir, CACHE_FILENAME);
   }
@@ -59,8 +41,7 @@ const resolveCacheFilePath = (explicitPath?: string): string => {
     return join(home, "Library", "Caches", "findr", CACHE_FILENAME);
   }
   if (platform === "win32") {
-    const localAppData =
-      getEnvValue("LOCALAPPDATA") ?? join(home, "AppData", "Local");
+    const localAppData = Bun.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
     return join(localAppData, "findr", "Cache", CACHE_FILENAME);
   }
   return join(home, ".cache", "findr", CACHE_FILENAME);
@@ -70,7 +51,7 @@ const resolveTtl = (configuredTtl?: number): number | undefined => {
   if (typeof configuredTtl === "number") {
     return configuredTtl >= 0 ? configuredTtl : undefined;
   }
-  const envTtl = parsePositiveInteger(getEnvValue("FINDR_CACHE_TTL_MS"));
+  const envTtl = parsePositiveInteger(Bun.env["FINDR_CACHE_TTL_MS"]);
   if (typeof envTtl === "number") {
     return envTtl;
   }
