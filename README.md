@@ -71,3 +71,5 @@ them consistently.
   export BRAVE_API_KEY="your-token-here"
   bun run dev
   ```
+- Perplexity (`:toggle perplexity`) — structured web answers via Vercel AI SDK. Requires `PERPLEXITY_API_KEY`.
+- ChatGPT (`:toggle chatgpt`) — uses OpenAI's ChatGPT models to synthesise web-style results. Requires `OPENAI_API_KEY`.
