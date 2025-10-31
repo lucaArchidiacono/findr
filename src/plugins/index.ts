@@ -1,6 +1,7 @@
 import { PluginManager } from "../core/plugins";
 import SearchCache from "../core/searchCache";
 import bravePlugin from "./brave";
+import jiraPlugin from "./jira";
 import perplexityPlugin from "./perplexity";
 import mockPlugin from "./mock";
 
@@ -10,6 +11,7 @@ export const createPluginManager = (): PluginManager => {
 
   manager.register(bravePlugin);
   manager.register(perplexityPlugin);
+  manager.register(jiraPlugin);
   manager.register(mockPlugin);
 
   return manager;
@@ -18,6 +20,7 @@ export const createPluginManager = (): PluginManager => {
 export const builtInPluginIds = {
   brave: bravePlugin.id,
   perplexity: perplexityPlugin.id,
+  jira: jiraPlugin.id,
   mock: mockPlugin.id,
 } as const;
 
