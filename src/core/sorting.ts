@@ -28,9 +28,13 @@ export const sortResults = (
       );
     case "source":
       return [...results].sort((a, b) => {
-        const bySource = a.pluginDisplayNames.join(", ").localeCompare(b.pluginDisplayNames.join(", "));
-        if (bySource !== 0) {
-          return bySource;
+        const pluginCountDiff = b.pluginIds.length - a.pluginIds.length;
+        if (pluginCountDiff !== 0) {
+          return pluginCountDiff;
+        }
+        const byPluginIds = a.pluginIds.join(", ").localeCompare(b.pluginIds.join(", "));
+        if (byPluginIds !== 0) {
+          return byPluginIds;
         }
         return scoreFallback(b) - scoreFallback(a);
       });
