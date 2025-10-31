@@ -227,7 +227,12 @@ export class PluginManager {
           }
 
           values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
-          const combined = Object.assign({}, ...values);
+          const baseCombine = Object.assign({}, ...values);
+          const totalScore = values.reduce((sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0), 0);
+          const combined = {
+            ...baseCombine,
+            ...(values.some(v => typeof v.score === "number") ? { score: totalScore } : {})
+          };
 
           return {
             ...combined,
