@@ -71,3 +71,14 @@ them consistently.
   export BRAVE_API_KEY="your-token-here"
   bun run dev
   ```
+- Perplexity (`:toggle perplexity`) — structured web answers powered by the Vercel AI SDK and Zod
+  schemas. Requires `PERPLEXITY_API_KEY`.
+- Atlassian Jira (`:toggle jira`) — performs text searches against your Jira Cloud instance using
+  the REST API with strict Zod validation. Provide the following environment variables:
+
+  ```bash
+  export JIRA_BASE_URL="https://your-domain.atlassian.net"
+  export JIRA_EMAIL="you@example.com"
+  export JIRA_API_TOKEN="your-api-token"
+  bun run dev
+  ```
