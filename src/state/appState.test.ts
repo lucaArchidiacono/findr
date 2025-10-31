@@ -5,14 +5,16 @@ import { createInitialState, appReducer } from "./appState";
 
 const createResult = (id: string, score: number, pluginId = "mock"): AggregatedSearchResult => ({
   id,
-  pluginId,
-  pluginDisplayName: pluginId,
   title: `Title ${id}`,
   description: `Description ${id}`,
   url: `https://example.com/${id}`,
   score,
   timestamp: Date.now() + score,
   receivedAt: Date.now(),
+  pluginId,
+  pluginDisplayName: pluginId,
+  pluginIds: [pluginId],
+  pluginDisplayNames: [pluginId],
 });
 
 const setupState = () => {
