@@ -28,7 +28,7 @@ export const sortResults = (
       );
     case "source":
       return [...results].sort((a, b) => {
-        const bySource = a.pluginDisplayName.localeCompare(b.pluginDisplayName);
+        const bySource = a.pluginDisplayNames.join(", ").localeCompare(b.pluginDisplayNames.join(", "));
         if (bySource !== 0) {
           return bySource;
         }
