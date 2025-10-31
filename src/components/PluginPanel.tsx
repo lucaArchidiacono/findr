@@ -1,13 +1,19 @@
 import { TextAttributes } from "@opentui/core";
-import type { PluginRegistration } from "../core/plugins";
+import type { SearchPlugin } from "../core/plugins";
 
 interface PluginPanelProps {
-  plugins: PluginRegistration[];
+  plugins: SearchPlugin[];
+  enabledPluginIds: string[];
   selectedIndex: number;
   visible: boolean;
 }
 
-export const PluginPanel  = ({ plugins, selectedIndex, visible }: PluginPanelProps) => {
+export const PluginPanel = ({
+  plugins,
+  enabledPluginIds,
+  selectedIndex,
+  visible,
+}: PluginPanelProps) => {
   if (!visible) {
     return null;
   }
@@ -26,13 +32,13 @@ export const PluginPanel  = ({ plugins, selectedIndex, visible }: PluginPanelPro
       <text attributes={TextAttributes.BOLD} marginBottom={1}>
         Plugins
       </text>
-      {plugins.map((registration, index) => {
+      {plugins.map((plugin, index) => {
         const isSelected = index === selectedIndex;
-        const marker = registration.enabled ? "[x]" : "[ ]";
+        const marker = enabledPluginIds.includes(plugin.id) ? "[x]" : "[ ]";
 
         return (
           <box
-            key={registration.plugin.id}
+            key={plugin.id}
             flexDirection="column"
             marginBottom={1}
             backgroundColor={isSelected ? "#1d1f21" : "transparent"}
@@ -42,10 +48,10 @@ export const PluginPanel  = ({ plugins, selectedIndex, visible }: PluginPanelPro
             paddingBottom={1}
           >
             <text>
-              {marker} {registration.plugin.displayName}
+              {marker} {plugin.displayName}
             </text>
-            {registration.plugin.description ? (
-              <text attributes={TextAttributes.DIM}>{registration.plugin.description}</text>
+            {plugin.description ? (
+              <text attributes={TextAttributes.DIM}>{plugin.description}</text>
             ) : null}
           </box>
         );

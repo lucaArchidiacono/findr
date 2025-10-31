@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
-import { createPluginManager } from "../plugins";
-import type { AggregateSearchResponse, PluginRegistration } from "../core/plugins";
+import type { AggregateSearchResponse } from "../core/plugins";
 import SearchBar from "./SearchBar";
 import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
 import StatusBar from "./StatusBar";
 import FeedbackBar from "./FeedbackBar";
+import { useBackend } from "../core/backend";
+import plugins from "../plugins";
 
 type Pane = AppState["activePane"];
 
@@ -51,28 +52,26 @@ const openUrlInBrowser = async (url: string) => {
   }
 };
 
-const usePluginManager = () => useMemo(() => createPluginManager(), []);
-
 export const App = () => {
-  const pluginManager = usePluginManager();
-  const [state, dispatch] = useReducer(appReducer, undefined, () =>
-    createInitialState(pluginManager),
-  );
+  const [state, dispatch] = useReducer(appReducer, undefined, () => createInitialState());
   const abortControllerRef = useRef<AbortController | null>(null);
   const renderer = useRenderer();
-
-  const plugins: PluginRegistration[] = pluginManager.list();
-
-  useEffect(() => {
-    renderer?.console?.clear?.();
-  }, [renderer]);
+  const backend = useBackend();
 
   useEffect(() => {
-    const registeredIds = pluginManager.getEnabledPluginIds();
+    if (state.showConsole) {
+      renderer?.console?.show?.();
+    } else {
+      renderer?.console?.hide?.();
+    }
+  }, [renderer, state.showConsole]);
+
+  useEffect(() => {
+    const registeredIds = backend.getEnabledPluginIds();
     if (registeredIds.join(",") !== state.enabledPluginIds.join(",")) {
       dispatch({ type: "plugins/setEnabled", pluginIds: registeredIds });
     }
-  }, [pluginManager, state.enabledPluginIds]);
+  }, [state.enabledPluginIds, backend]);
 
   const setPane = (pane: Pane) => {
     dispatch({ type: "pane/set", pane });
@@ -127,7 +126,7 @@ export const App = () => {
     dispatch({ type: "search/start", query });
 
     try {
-      const response = await pluginManager.search(query, { signal: controller.signal });
+      const response = await backend.search(query, { signal: controller.signal });
       handleSearchResponse(response);
       if (response.results.length === 0) {
         dispatch({
@@ -153,15 +152,15 @@ export const App = () => {
     const normalized = normalizeId(idOrName);
     return plugins.find(
       (registration) =>
-        registration.plugin.id.toLowerCase() === normalized ||
-        registration.plugin.displayName.toLowerCase() === normalized,
+        registration.id.toLowerCase() === normalized ||
+        registration.displayName.toLowerCase() === normalized,
     );
   };
 
   const syncEnabledPlugins = () => {
     dispatch({
       type: "plugins/setEnabled",
-      pluginIds: pluginManager.getEnabledPluginIds(),
+      pluginIds: backend.getEnabledPluginIds(),
     });
   };
 
@@ -191,11 +190,11 @@ export const App = () => {
           });
           return "keep";
         }
-        pluginManager.setEnabled(registration.plugin.id, true);
+        backend.setPluginEnabled(registration.id, true);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Enabled ${registration.plugin.displayName}.`, "info"),
+          feedback: toFeedback(`Enabled ${registration.displayName}.`, "info"),
         });
         return "clear";
       }
@@ -208,11 +207,11 @@ export const App = () => {
           });
           return "keep";
         }
-        pluginManager.setEnabled(registration.plugin.id, false);
+        backend.setPluginEnabled(registration.id, false);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Disabled ${registration.plugin.displayName}.`, "info"),
+          feedback: toFeedback(`Disabled ${registration.displayName}.`, "info"),
         });
         return "clear";
       }
@@ -225,12 +224,12 @@ export const App = () => {
           });
           return "keep";
         }
-        const enabled = pluginManager.toggle(registration.plugin.id);
+        const enabled = backend.togglePlugin(registration.id);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
           feedback: toFeedback(
-            `${enabled ? "Enabled" : "Disabled"} ${registration.plugin.displayName}.`,
+            `${enabled ? "Enabled" : "Disabled"} ${registration.displayName}.`,
             "info",
           ),
         });
@@ -270,6 +269,9 @@ export const App = () => {
           feedback: toFeedback(commandHelpText, "info"),
         });
         return "keep";
+      case "toggleConsole":
+        dispatch({ type: "console/toggle", visible: !state.showConsole });
+        return "clear";
       default:
         return "keep";
     }
@@ -302,14 +304,11 @@ export const App = () => {
     if (!target) {
       return;
     }
-    const enabled = pluginManager.toggle(target.plugin.id);
+    const enabled = backend.togglePlugin(target.id);
     syncEnabledPlugins();
     dispatch({
       type: "feedback/set",
-      feedback: toFeedback(
-        `${enabled ? "Enabled" : "Disabled"} ${target.plugin.displayName}.`,
-        "info",
-      ),
+      feedback: toFeedback(`${enabled ? "Enabled" : "Disabled"} ${target.displayName}.`, "info"),
     });
   };
 
@@ -391,6 +390,7 @@ export const App = () => {
         />
         <PluginPanel
           plugins={plugins}
+          enabledPluginIds={state.enabledPluginIds}
           selectedIndex={state.pluginPanelIndex}
           visible={state.showPluginPanel}
         />

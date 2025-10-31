@@ -1,9 +1,10 @@
-import type { AggregatedSearchResult, PluginExecutionError, PluginManager } from "../core/plugins";
+import { getEnabledPluginIds } from "../core/backend";
+import type { AggregatedSearchResult, PluginExecutionError } from "../core/plugins";
 import { sortResults, type SortOrder } from "../core/sorting";
 
 export interface CommandFeedback {
   message: string;
-  tone: "info" | "error";
+  tone: "info" | "warning" | "error";
 }
 
 export interface AppState {
@@ -16,6 +17,7 @@ export interface AppState {
   pluginErrors: PluginExecutionError[];
   enabledPluginIds: string[];
   showPluginPanel: boolean;
+  showConsole: boolean;
   pluginPanelIndex: number;
   feedback?: CommandFeedback;
   errorMessage?: string;
@@ -36,9 +38,10 @@ export type AppAction =
   | { type: "plugins/setPanelVisible"; visible: boolean }
   | { type: "plugins/setPanelIndex"; index: number; total: number }
   | { type: "feedback/set"; feedback?: CommandFeedback }
-  | { type: "pane/set"; pane: AppState["activePane"] };
+  | { type: "pane/set"; pane: AppState["activePane"] }
+  | { type: "console/toggle"; visible: boolean };
 
-export const createInitialState = (pluginManager: PluginManager): AppState => ({
+export const createInitialState = (): AppState => ({
   inputValue: "",
   query: "",
   results: [],
@@ -46,8 +49,9 @@ export const createInitialState = (pluginManager: PluginManager): AppState => ({
   selectedIndex: 0,
   isLoading: false,
   pluginErrors: [],
-  enabledPluginIds: pluginManager.getEnabledPluginIds(),
+  enabledPluginIds: getEnabledPluginIds(),
   showPluginPanel: false,
+  showConsole: false,
   pluginPanelIndex: 0,
   activePane: "search",
 });
@@ -156,6 +160,11 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         activePane: action.pane,
+      };
+    case "console/toggle":
+      return {
+        ...state,
+        showConsole: action.visible,
       };
     default:
       return state;

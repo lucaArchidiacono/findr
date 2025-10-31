@@ -85,14 +85,14 @@ export class PluginManager {
     });
   }
 
-  list(): PluginRegistration[] {
-    return Array.from(this.plugins.values()).sort((a, b) =>
-      a.plugin.displayName.localeCompare(b.plugin.displayName),
-    );
+  list(): SearchPlugin[] {
+    return Array.from(this.plugins.values())
+      .sort((a, b) => a.plugin.id.localeCompare(b.plugin.id))
+      .map((registration) => registration.plugin);
   }
 
-  getPlugin(id: string): PluginRegistration | undefined {
-    return this.plugins.get(id);
+  getPlugin(id: string): SearchPlugin | undefined {
+    return this.plugins.get(id)?.plugin;
   }
 
   isEnabled(id: string): boolean {
@@ -125,16 +125,20 @@ export class PluginManager {
   }
 
   getEnabledPluginIds(): string[] {
-    return this.list()
+    return this.getEnabledPlugins().map((plugin) => plugin.id);
+  }
+
+  getEnabledPlugins(): SearchPlugin[] {
+    return Array.from(this.plugins.values())
       .filter((registration) => registration.enabled)
-      .map((registration) => registration.plugin.id);
+      .map((registration) => registration.plugin);
   }
 
   async search(
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): Promise<AggregateSearchResponse> {
-    const enabledPlugins = this.list().filter((registration) => registration.enabled);
+    const enabledPlugins = this.getEnabledPlugins();
     if (enabledPlugins.length === 0) {
       return { results: [], errors: [] };
     }
@@ -150,9 +154,7 @@ export class PluginManager {
 
     try {
       const settledResults = await Promise.allSettled(
-        enabledPlugins.map(async (registration) => {
-          const { plugin } = registration;
-
+        enabledPlugins.map(async (plugin) => {
           if (controllerSignal.aborted) {
             throw controllerSignal.reason ?? new Error("Search aborted");
           }
@@ -163,7 +165,7 @@ export class PluginManager {
               throw controllerSignal.reason ?? new Error("Search aborted");
             }
             if (cachedResults) {
-              return { registration, results: cachedResults };
+              return { plugin, results: cachedResults };
             }
           }
 
@@ -176,7 +178,7 @@ export class PluginManager {
           if (this.cache) {
             await this.storeResultsInCache(plugin.id, query, options.limit, results);
           }
-          return { registration, results };
+          return { plugin, results };
         }),
       );
 
@@ -187,9 +189,8 @@ export class PluginManager {
       const errors: PluginExecutionError[] = [];
 
       settledResults.forEach((settled, idx) => {
-        const registration = enabledPlugins[idx];
-        if (!registration) return;
-        const { plugin } = registration;
+        const plugin = enabledPlugins[idx];
+        if (!plugin) return;
 
         if (settled && settled.status === "fulfilled") {
           const results = settled.value.results ?? [];
@@ -228,10 +229,13 @@ export class PluginManager {
 
           values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
           const baseCombine = Object.assign({}, ...values);
-          const totalScore = values.reduce((sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0), 0);
+          const totalScore = values.reduce(
+            (sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0),
+            0,
+          );
           const combined = {
             ...baseCombine,
-            ...(values.some(v => typeof v.score === "number") ? { score: totalScore } : {})
+            ...(values.some((v) => typeof v.score === "number") ? { score: totalScore } : {}),
           };
 
           return {
