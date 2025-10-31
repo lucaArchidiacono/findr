@@ -5,8 +5,8 @@ import { createInitialState, appReducer } from "./appState";
 
 const createResult = (id: string, score: number, pluginId = "mock"): AggregatedSearchResult => ({
   id,
-  pluginId,
-  pluginDisplayName: pluginId,
+  pluginIds: [pluginId],
+  pluginDisplayNames: [pluginId],
   title: `Title ${id}`,
   description: `Description ${id}`,
   url: `https://example.com/${id}`,
@@ -64,7 +64,9 @@ describe("appState reducer", () => {
     };
 
     const sorted = appReducer(populated, { type: "sort/set", sortOrder: "source" });
-    expect(sorted.results[0].pluginId <= sorted.results[1].pluginId).toBe(true);
+    const firstSource = sorted.results[0].pluginIds[0];
+    const secondSource = sorted.results[1].pluginIds[0];
+    expect(firstSource <= secondSource).toBe(true);
   });
 
   it("clamps plugin panel selection", () => {

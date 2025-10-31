@@ -71,3 +71,10 @@ them consistently.
   export BRAVE_API_KEY="your-token-here"
   bun run dev
   ```
+- Kagi Search (`:toggle kagi`) — queries the Kagi Search API. Provide a `KAGI_API_KEY` in the
+  environment (the key is sent using `Authorization: Bot <token>`):
+
+  ```bash
+  export KAGI_API_KEY="your-token-here"
+  bun run dev
+  ```
