@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { PluginManager, type SearchPlugin } from "./plugins";
-import SearchCache from "./searchCache";
+import SearchCache from "./keyValueStorage";
 
 const createStubPlugin = (
   id: string,

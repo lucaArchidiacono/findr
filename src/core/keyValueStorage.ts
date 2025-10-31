@@ -1,11 +1,7 @@
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
-import { access, mkdir, readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
-import type { SearchResult } from "./plugins";
 
 const CACHE_FILE_VERSION = 1;
-const CACHE_FILENAME = "search-cache.json";
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
@@ -16,10 +12,18 @@ const parsePositiveInteger = (value: string | undefined): number | undefined => 
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 };
 
-const resolveCacheFilePath = (explicitPath?: string): string => {
+const resolveCacheFilePath = ({
+  filename,
+  explicitPath,
+}: {
+  filename?: string;
+  explicitPath?: string;
+}): string => {
   if (explicitPath) {
     return explicitPath;
   }
+
+  const resolvedFilename = filename ?? "findr-cache.json";
 
   const overriddenPath = Bun.env["FINDR_CACHE_FILE"];
   if (overriddenPath) {
@@ -28,23 +32,23 @@ const resolveCacheFilePath = (explicitPath?: string): string => {
 
   const overriddenDir = Bun.env["FINDR_CACHE_DIR"];
   if (overriddenDir) {
-    return join(overriddenDir, CACHE_FILENAME);
+    return join(overriddenDir, resolvedFilename);
   }
 
   const home = typeof homedir === "function" ? homedir() : undefined;
   if (!home) {
-    return join(".", ".findr", CACHE_FILENAME);
+    return join(".", ".findr", resolvedFilename);
   }
 
   const platform = typeof process !== "undefined" ? process.platform : undefined;
   if (platform === "darwin") {
-    return join(home, "Library", "Caches", "findr", CACHE_FILENAME);
+    return join(home, "Library", "Caches", "findr", resolvedFilename);
   }
   if (platform === "win32") {
     const localAppData = Bun.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
-    return join(localAppData, "findr", "Cache", CACHE_FILENAME);
+    return join(localAppData, "findr", "Cache", resolvedFilename);
   }
-  return join(home, ".cache", "findr", CACHE_FILENAME);
+  return join(home, ".cache", "findr", resolvedFilename);
 };
 
 const resolveTtl = (configuredTtl?: number): number | undefined => {
@@ -58,119 +62,97 @@ const resolveTtl = (configuredTtl?: number): number | undefined => {
   return DEFAULT_TTL_MS;
 };
 
-const cloneSerializable = <T>(value: T): T => {
-  if (typeof globalThis.structuredClone === "function") {
-    return globalThis.structuredClone(value);
-  }
-  return JSON.parse(JSON.stringify(value)) as T;
-};
-
-interface CacheEntry {
-  results: SearchResult[];
+interface CacheEntry<TValue> {
+  value: TValue;
   cachedAt: number;
   expiresAt?: number;
 }
 
-interface CacheFileFormat {
+interface CacheFileFormat<TValue> {
   version: number;
-  entries: Record<string, CacheEntry>;
+  entries: Record<string, CacheEntry<TValue>>;
 }
 
-export interface SearchCacheKey {
-  pluginId: string;
-  query: string;
-  limit?: number;
-}
+const defaultSerializeKey = (key: unknown): string => {
+  if (typeof key === "string") {
+    return key;
+  }
 
-export interface SearchCacheRecord extends SearchCacheKey {
-  results: SearchResult[];
-}
+  try {
+    return JSON.stringify(key);
+  } catch {
+    return String(key);
+  }
+};
 
-export interface SearchCacheOptions {
+export interface KeyValueStorageOptions<TKey = string> {
+  filename?: string;
   path?: string;
   ttlMs?: number;
+  serializeKey?: (key: TKey) => string;
 }
 
-const bunAvailable = (): boolean => typeof Bun !== "undefined";
-
 const fileExists = async (path: string): Promise<boolean> => {
-  if (bunAvailable()) {
-    const file = Bun.file(path);
-    return await file.exists();
-  }
-  try {
-    await access(path, fsConstants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  const file = Bun.file(path);
+  return await file.exists();
 };
 
 const readTextFile = async (path: string): Promise<string> => {
-  if (bunAvailable()) {
-    return await Bun.file(path).text();
-  }
-  return await fsReadFile(path, "utf-8");
+  return await Bun.file(path).text();
 };
 
 const writeTextFile = async (path: string, data: string): Promise<void> => {
-  if (bunAvailable()) {
-    await Bun.write(path, data, { createPath: true });
-    return;
-  }
-  await mkdir(dirname(path), { recursive: true });
-  await fsWriteFile(path, data, "utf-8");
+  await Bun.write(path, data, { createPath: true });
 };
 
-export class SearchCache {
+export class KeyValueStorage<TKey = string, TValue = unknown> {
   private readonly path: string;
   private readonly ttlMs?: number;
-  private readonly entries = new Map<string, CacheEntry>();
+  private readonly serializeKey: (key: TKey) => string;
+  private readonly entries = new Map<string, CacheEntry<TValue>>();
   private isLoaded = false;
   private loadPromise: Promise<void> | null = null;
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(options: SearchCacheOptions = {}) {
-    this.path = resolveCacheFilePath(options.path);
+  constructor(options: KeyValueStorageOptions<TKey>) {
+    this.path = resolveCacheFilePath({ filename: options.filename, explicitPath: options.path });
     this.ttlMs = resolveTtl(options.ttlMs);
+    this.serializeKey = options.serializeKey ?? ((key) => defaultSerializeKey(key));
   }
 
-  async get(key: SearchCacheKey): Promise<SearchResult[] | undefined> {
+  async get(key: TKey): Promise<TValue | undefined> {
     await this.ensureLoaded();
-    const cacheKey = this.createKey(key);
-    const entry = this.entries.get(cacheKey);
+    const serializedKey = this.serializeKey(key);
+    const entry = this.entries.get(serializedKey);
     if (!entry) {
       return undefined;
     }
 
     if (this.isExpired(entry)) {
-      this.entries.delete(cacheKey);
+      this.entries.delete(serializedKey);
       await this.persist();
       return undefined;
     }
 
-    return cloneSerializable(entry.results);
+    return entry.value;
   }
 
-  async set(record: SearchCacheRecord): Promise<void> {
+  async set(key: TKey, value: TValue): Promise<void> {
     await this.ensureLoaded();
-    const cacheKey = this.createKey(record);
 
     const now = Date.now();
     const expiresAt =
       typeof this.ttlMs === "number" && this.ttlMs > 0 ? now + this.ttlMs : undefined;
 
-    this.entries.set(cacheKey, {
-      results: cloneSerializable(record.results),
+    const serializedKey = this.serializeKey(key);
+
+    this.entries.set(serializedKey, {
+      value,
       cachedAt: now,
       expiresAt,
     });
 
     await this.persist();
-  }
-
-  private createKey(key: SearchCacheKey): string {
-    return JSON.stringify([key.pluginId, key.limit ?? null, key.query]);
   }
 
   private async ensureLoaded(): Promise<void> {
@@ -194,25 +176,22 @@ export class SearchCache {
 
     try {
       const serialized = await readTextFile(this.path);
-      const parsed = JSON.parse(serialized) as CacheFileFormat;
+      const parsed = JSON.parse(serialized) as CacheFileFormat<unknown>;
 
       if (parsed && parsed.version === CACHE_FILE_VERSION && parsed.entries) {
         for (const [key, entry] of Object.entries(parsed.entries)) {
-          if (
-            entry &&
-            Array.isArray(entry.results) &&
-            typeof entry.cachedAt === "number"
-          ) {
-            this.entries.set(key, {
-              results: entry.results,
-              cachedAt: entry.cachedAt,
-              expiresAt: entry.expiresAt,
-            });
+          if (!entry || typeof entry.cachedAt !== "number") {
+            continue;
           }
+
+          this.entries.set(key, {
+            value: entry.value as TValue,
+            cachedAt: entry.cachedAt,
+            expiresAt: entry.expiresAt,
+          });
         }
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.warn("Failed to load search cache:", error);
     }
 
@@ -221,7 +200,7 @@ export class SearchCache {
     }
   }
 
-  private isExpired(entry: CacheEntry): boolean {
+  private isExpired(entry: CacheEntry<TValue>): boolean {
     const now = Date.now();
     if (typeof entry.expiresAt === "number") {
       return entry.expiresAt <= now;
@@ -253,7 +232,7 @@ export class SearchCache {
   }
 
   private async writeToDisk(): Promise<void> {
-    const payload: CacheFileFormat = {
+    const payload: CacheFileFormat<TValue> = {
       version: CACHE_FILE_VERSION,
       entries: Object.fromEntries(this.entries.entries()),
     };
@@ -263,4 +242,4 @@ export class SearchCache {
   }
 }
 
-export default SearchCache;
+export default KeyValueStorage;

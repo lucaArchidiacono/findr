@@ -1,4 +1,4 @@
-import type SearchCache from "./searchCache";
+import type KeyValueStorage from "./keyValueStorage";
 
 export interface SearchQuery {
   query: string;
@@ -59,18 +59,15 @@ const createResultId = (index: number) => {
 };
 
 export interface PluginManagerOptions {
-  cache?: SearchCache;
-  logger?: Pick<Console, "warn">;
+  cache?: KeyValueStorage;
 }
 
 export class PluginManager {
   private readonly plugins = new Map<string, PluginRegistration>();
-  private readonly cache?: SearchCache;
-  private readonly logger: Pick<Console, "warn">;
+  private readonly cache?: KeyValueStorage;
 
   constructor(options: PluginManagerOptions = {}) {
     this.cache = options.cache;
-    this.logger = options.logger ?? console;
   }
 
   register(plugin: SearchPlugin): void {
@@ -264,9 +261,11 @@ export class PluginManager {
     }
 
     try {
-      return await this.cache.get({ pluginId, query, limit });
+      return (await this.cache.get(`${pluginId}-${query}-${limit ?? ""}`)) as
+        | SearchResult[]
+        | undefined;
     } catch (error) {
-      this.logger.warn?.(
+      console.warn(
         `Failed to read cache for plugin "${pluginId}":`,
         error instanceof Error ? error.message : String(error),
       );
@@ -284,9 +283,9 @@ export class PluginManager {
       return;
     }
     try {
-      await this.cache.set({ pluginId, query, limit, results });
+      await this.cache.set(`${pluginId}-${query}-${limit ?? ""}`, results);
     } catch (error) {
-      this.logger.warn?.(
+      console.warn(
         `Failed to update cache for plugin "${pluginId}":`,
         error instanceof Error ? error.message : String(error),
       );

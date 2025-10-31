@@ -1,4 +1,3 @@
-import { getEnabledPluginIds } from "../core/backend";
 import type { AggregatedSearchResult, PluginExecutionError } from "../core/plugins";
 import { sortResults, type SortOrder } from "../core/sorting";
 
@@ -49,7 +48,7 @@ export const createInitialState = (): AppState => ({
   selectedIndex: 0,
   isLoading: false,
   pluginErrors: [],
-  enabledPluginIds: getEnabledPluginIds(),
+  enabledPluginIds: [],
   showPluginPanel: false,
   showConsole: false,
   pluginPanelIndex: 0,

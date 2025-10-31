@@ -1,20 +1,17 @@
 import { PluginManager } from "./plugins";
-import SearchCache from "./searchCache";
+import { KeyValueStorage } from "./keyValueStorage";
 import plugins from "../plugins";
 
 class Backend {
-  private readonly cache: SearchCache;
   private readonly pluginManager: PluginManager;
 
   constructor() {
-    this.cache = new SearchCache();
-    const manager = new PluginManager({ cache: this.cache });
-
-    plugins.forEach((plugin) => {
-      manager.register(plugin);
+    this.pluginManager = new PluginManager({
+      cache: new KeyValueStorage({ filename: "findr-cache.json" }),
     });
-
-    this.pluginManager = manager;
+    plugins.forEach((plugin) => {
+      this.pluginManager.register(plugin);
+    });
   }
 
   search(query: string, options: { signal?: AbortSignal; limit?: number } = {}) {
