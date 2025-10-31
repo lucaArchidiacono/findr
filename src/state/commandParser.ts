@@ -7,7 +7,8 @@ export type Command =
   | { kind: "setSort"; sortOrder: SortOrder }
   | { kind: "togglePluginPanel" }
   | { kind: "clearResults" }
-  | { kind: "showHelp" };
+  | { kind: "showHelp" }
+  | { kind: "toggleConsole" };
 
 export type ParsedInput =
   | { type: "command"; command: Command }
@@ -106,6 +107,11 @@ export const parseInput = (rawInput: string): ParsedInput => {
       return {
         type: "command",
         command: { kind: "clearResults" },
+      };
+    case "console":
+      return {
+        type: "command",
+        command: { kind: "toggleConsole" },
       };
     case "help":
     case "?":
