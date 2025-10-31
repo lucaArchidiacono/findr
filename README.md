@@ -71,3 +71,12 @@ them consistently.
   export BRAVE_API_KEY="your-token-here"
   bun run dev
   ```
+
+- Google Search (`:toggle google`) — results from Google Custom Search. Provide both `GOOGLE_API_KEY`
+  and `GOOGLE_CX` (your programmable search engine id):
+
+  ```bash
+  export GOOGLE_API_KEY="your-api-key"
+  export GOOGLE_CX="your-search-engine-id"
+  bun run dev
+  ```
