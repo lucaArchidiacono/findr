@@ -7,8 +7,10 @@ future sessions can resume quickly.
 
 - **Core architecture** – `src/core/plugins.ts`, `src/core/sorting.ts`: plugin contracts, manager,
   and result sorting utilities.
-- **Plugins** – `src/plugins/index.ts`, `src/plugins/mock.ts`, `src/plugins/brave.ts`: plugin
-  registry with a local mock provider and Brave Search integration (requires `BRAVE_API_KEY`).
+- **Plugins** – `src/plugins/index.ts`, `src/plugins/mock.ts`, `src/plugins/brave.ts`,
+  `src/plugins/google.ts`, `src/plugins/perplexity.ts`: plugin registry with a local mock provider
+  plus integrations for Brave Search (`BRAVE_API_KEY`), Google Custom Search (`GOOGLE_API_KEY`,
+  `GOOGLE_CX`), and Perplexity (`PERPLEXITY_API_KEY`).
 - **State management** – `src/state/appState.ts`, `src/state/commandParser.ts`: reducer, pane
   tracking, command parsing, and feedback handling.
 - **UI components** – `src/components/App.tsx` orchestrates SearchBar, ResultList, PluginPanel,
