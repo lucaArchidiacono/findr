@@ -7,11 +7,6 @@ interface FeedbackBarProps {
   pluginErrors: string[];
 }
 
-const toneColor: Record<CommandFeedback["tone"], string> = {
-  info: "#8dc891",
-  error: "#ff6b6b",
-};
-
 export const FeedbackBar = ({ feedback, errorMessage, pluginErrors }: FeedbackBarProps) => {
   const pluginErrorMessage = pluginErrors.join(" | ");
 
@@ -25,23 +20,28 @@ export const FeedbackBar = ({ feedback, errorMessage, pluginErrors }: FeedbackBa
 
   if (feedback) {
     return (
-      <box backgroundColor={toneColor[feedback.tone]} height={1} paddingLeft={1}>
-        <text>{feedback.message}</text>
+      <box height={1} paddingLeft={1}>
+        <text attributes={TextAttributes.BOLD}>{feedback.message}</text>
       </box>
     );
   }
 
   if (errorMessage) {
     return (
-      <box backgroundColor="#ff6b6b" height={1} paddingLeft={1}>
-        <text>{errorMessage}</text>
+      <box height={1} paddingLeft={1}>
+        <text
+          style={{ selectionBg: "#ff6b6b", selectionFg: "#ffffff" }}
+          attributes={TextAttributes.BOLD}
+        >
+          {errorMessage}
+        </text>
       </box>
     );
   }
 
   return (
-    <box backgroundColor="#ffa94d" height={1} paddingLeft={1}>
-      <text>{pluginErrorMessage}</text>
+    <box height={1} paddingLeft={1}>
+      <text attributes={TextAttributes.BOLD}>{pluginErrorMessage}</text>
     </box>
   );
 };
