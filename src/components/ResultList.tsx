@@ -65,19 +65,15 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
             backgroundColor={isSelected ? "#1d1f21" : "transparent"}
           >
             <box backgroundColor={isSelected ? "#333333" : "transparent"}>
-              <text attributes={TextAttributes.BOLD}>
-                [{result.pluginDisplayName}] {result.title}
-              </text>
+              <text attributes={TextAttributes.BOLD}>{result.title}</text>
               <text attributes={TextAttributes.DIM}>
                 {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
               </text>
               <text attributes={TextAttributes.UNDERLINE}>
                 {truncateUrl(result.url, MAX_URL_LENGTH)}
               </text>
+              <text attributes={TextAttributes.DIM}>{result.pluginDisplayNames.join(", ")}</text>
             </box>
-
-            {/* <box backgroundColor={"#bbbbbb"}></box>
-            <box backgroundColor={"#6d9bf1"}></box> */}
           </box>
         );
       })}

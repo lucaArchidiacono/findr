@@ -1,28 +1,12 @@
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { access, mkdir, readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import type { SearchResult } from "./plugins";
 
 const CACHE_FILE_VERSION = 1;
 const CACHE_FILENAME = "search-cache.json";
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
-
-const getEnvValue = (key: string): string | undefined => {
-  if (typeof Bun !== "undefined" && Bun.env) {
-    const value = Bun.env[key];
-    if (value) {
-      return value;
-    }
-  }
-
-  if (typeof process !== "undefined" && "env" in process) {
-    const value = process.env[key];
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
-};
 
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value) {
@@ -37,12 +21,12 @@ const resolveCacheFilePath = (explicitPath?: string): string => {
     return explicitPath;
   }
 
-  const overriddenPath = getEnvValue("FINDR_CACHE_FILE");
+  const overriddenPath = Bun.env["FINDR_CACHE_FILE"];
   if (overriddenPath) {
     return overriddenPath;
   }
 
-  const overriddenDir = getEnvValue("FINDR_CACHE_DIR");
+  const overriddenDir = Bun.env["FINDR_CACHE_DIR"];
   if (overriddenDir) {
     return join(overriddenDir, CACHE_FILENAME);
   }
@@ -57,8 +41,7 @@ const resolveCacheFilePath = (explicitPath?: string): string => {
     return join(home, "Library", "Caches", "findr", CACHE_FILENAME);
   }
   if (platform === "win32") {
-    const localAppData =
-      getEnvValue("LOCALAPPDATA") ?? join(home, "AppData", "Local");
+    const localAppData = Bun.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
     return join(localAppData, "findr", "Cache", CACHE_FILENAME);
   }
   return join(home, ".cache", "findr", CACHE_FILENAME);
@@ -68,7 +51,7 @@ const resolveTtl = (configuredTtl?: number): number | undefined => {
   if (typeof configuredTtl === "number") {
     return configuredTtl >= 0 ? configuredTtl : undefined;
   }
-  const envTtl = parsePositiveInteger(getEnvValue("FINDR_CACHE_TTL_MS"));
+  const envTtl = parsePositiveInteger(Bun.env["FINDR_CACHE_TTL_MS"]);
   if (typeof envTtl === "number") {
     return envTtl;
   }
@@ -108,6 +91,37 @@ export interface SearchCacheOptions {
   ttlMs?: number;
 }
 
+const bunAvailable = (): boolean => typeof Bun !== "undefined";
+
+const fileExists = async (path: string): Promise<boolean> => {
+  if (bunAvailable()) {
+    const file = Bun.file(path);
+    return await file.exists();
+  }
+  try {
+    await access(path, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const readTextFile = async (path: string): Promise<string> => {
+  if (bunAvailable()) {
+    return await Bun.file(path).text();
+  }
+  return await fsReadFile(path, "utf-8");
+};
+
+const writeTextFile = async (path: string, data: string): Promise<void> => {
+  if (bunAvailable()) {
+    await Bun.write(path, data, { createPath: true });
+    return;
+  }
+  await mkdir(dirname(path), { recursive: true });
+  await fsWriteFile(path, data, "utf-8");
+};
+
 export class SearchCache {
   private readonly path: string;
   private readonly ttlMs?: number;
@@ -117,9 +131,6 @@ export class SearchCache {
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(options: SearchCacheOptions = {}) {
-    if (typeof Bun === "undefined") {
-      throw new Error("SearchCache requires the Bun runtime.");
-    }
     this.path = resolveCacheFilePath(options.path);
     this.ttlMs = resolveTtl(options.ttlMs);
   }
@@ -176,14 +187,13 @@ export class SearchCache {
   }
 
   private async loadFromDisk(): Promise<void> {
-    const file = Bun.file(this.path);
-    const exists = await file.exists();
+    const exists = await fileExists(this.path);
     if (!exists) {
       return;
     }
 
     try {
-      const serialized = await file.text();
+      const serialized = await readTextFile(this.path);
       const parsed = JSON.parse(serialized) as CacheFileFormat;
 
       if (parsed && parsed.version === CACHE_FILE_VERSION && parsed.entries) {
@@ -249,7 +259,7 @@ export class SearchCache {
     };
 
     const serialized = JSON.stringify(payload, null, 2);
-    await Bun.write(this.path, serialized, { createPath: true });
+    await writeTextFile(this.path, serialized);
   }
 }
 

@@ -1,20 +1,7 @@
 import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
-const API_KEY_ENV = "BRAVE_API_KEY";
 const DEFAULT_RESULT_LIMIT = 10;
-
-const resolveApiKey = (): string | undefined => {
-  if (typeof Bun !== "undefined" && Bun.env) {
-    return Bun.env[API_KEY_ENV];
-  }
-
-  if (typeof process !== "undefined" && "env" in process) {
-    return process.env[API_KEY_ENV];
-  }
-
-  return undefined;
-};
 
 interface BraveWebResult {
   title?: string;
@@ -77,9 +64,9 @@ const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<Searc
     return [];
   }
 
-  const apiKey = resolveApiKey();
+  const apiKey = Bun.env["BRAVE_API_KEY"];
   if (!apiKey) {
-    throw new Error(`Missing Brave API key. Set ${API_KEY_ENV}=... to enable the plugin.`);
+    throw new Error(`Missing Brave API key. Set BRAVE_API_KEY=... to enable the plugin.`);
   }
 
   const url = new URL(BRAVE_ENDPOINT);
@@ -122,7 +109,7 @@ const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<Searc
 
 const bravePlugin: SearchPlugin = {
   id: "brave",
-  displayName: "Brave Search",
+  displayName: "Brave",
   description: "Queries the Brave Search API (requires BRAVE_API_KEY).",
   isEnabledByDefault: false,
   search: braveSearch,

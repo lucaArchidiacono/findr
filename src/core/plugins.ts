@@ -16,10 +16,15 @@ export interface SearchResult {
   metadata?: Record<string, unknown>;
 }
 
-export interface AggregatedSearchResult extends SearchResult {
-  id: string;
+export interface SearchResultWithPlugin extends SearchResult {
   pluginId: string;
   pluginDisplayName: string;
+}
+
+export interface AggregatedSearchResult extends SearchResult {
+  id: string;
+  pluginIds: string[];
+  pluginDisplayNames: string[];
   receivedAt: number;
 }
 
@@ -47,13 +52,11 @@ export interface AggregateSearchResponse {
   errors: PluginExecutionError[];
 }
 
-const createResultId = (pluginId: string, index: number) => {
+const createResultId = (index: number) => {
   const suffix =
     typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
-  return `${pluginId}-${index}-${suffix}`;
+  return `${index}-${suffix}`;
 };
-
-
 
 export interface PluginManagerOptions {
   cache?: SearchCache;
@@ -177,24 +180,31 @@ export class PluginManager {
         }),
       );
 
-      const receivedAt = Date.now();
-      const aggregated: AggregatedSearchResult[] = [];
+      const aggregated = new Map<
+        string,
+        (SearchResult & { pluginId: string; pluginDisplayName: string })[]
+      >();
       const errors: PluginExecutionError[] = [];
 
       settledResults.forEach((settled, idx) => {
         const registration = enabledPlugins[idx];
-        if (!registration) {
-          return;
-        }
+        if (!registration) return;
         const { plugin } = registration;
-        if (settled.status === "fulfilled") {
-          settled.value.results.forEach((result, resultIndex) => {
-            aggregated.push({
+
+        if (settled && settled.status === "fulfilled") {
+          const results = settled.value.results ?? [];
+          results.forEach((result) => {
+            if (!result) return;
+            const key = result.url;
+            let pluginResults = aggregated.get(key);
+            if (!pluginResults) {
+              pluginResults = [];
+              aggregated.set(key, pluginResults);
+            }
+            pluginResults.push({
               ...result,
-              id: result.id ?? createResultId(plugin.id, resultIndex),
               pluginId: plugin.id,
               pluginDisplayName: plugin.displayName,
-              receivedAt,
             });
           });
         } else {
@@ -202,12 +212,39 @@ export class PluginManager {
             pluginId: plugin.id,
             pluginDisplayName: plugin.displayName,
             error:
-              settled.reason instanceof Error ? settled.reason : new Error(String(settled.reason)),
+              settled?.reason instanceof Error
+                ? settled.reason
+                : new Error(String(settled?.reason)),
           });
         }
       });
 
-      return { results: aggregated, errors };
+      const receivedAt = Date.now();
+      const mergedResults: AggregatedSearchResult[] = Array.from(aggregated.values())
+        .map((values, index) => {
+          if (values.length <= 0) {
+            return undefined;
+          }
+
+          values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
+          const baseCombine = Object.assign({}, ...values);
+          const totalScore = values.reduce((sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0), 0);
+          const combined = {
+            ...baseCombine,
+            ...(values.some(v => typeof v.score === "number") ? { score: totalScore } : {})
+          };
+
+          return {
+            ...combined,
+            id: createResultId(index),
+            pluginIds: values.map((value) => value.pluginId),
+            pluginDisplayNames: values.map((value) => value.pluginDisplayName),
+            receivedAt,
+          };
+        })
+        .filter((value) => value !== undefined);
+
+      return { results: mergedResults, errors };
     } finally {
       options.signal?.removeEventListener("abort", handleExternalAbort);
     }

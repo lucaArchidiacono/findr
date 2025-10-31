@@ -28,8 +28,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.57",
+    "@ai-sdk/perplexity": "^2.0.15",
     "@opentui/core": "^0.1.30",
     "@opentui/react": "^0.1.30",
-    "react": "^19.1.1"
+    "ai": "^5.0.82",
+    "react": "^19.1.1",
+    "zod": "^4.1.12"
   }
 }
