@@ -71,3 +71,16 @@ them consistently.
   export BRAVE_API_KEY="your-token-here"
   bun run dev
   ```
+
+- Perplexity (`:toggle perplexity`) — structured web answers via the Perplexity SONAR model.
+  Provide `PERPLEXITY_API_KEY` to enable it.
+
+- Atlassian Confluence (`:toggle confluence`) — search across your Confluence spaces. Configure the
+  following environment variables (available from the Atlassian admin portal) before launching:
+
+  ```bash
+  export CONFLUENCE_BASE_URL="https://your-instance.atlassian.net/wiki"
+  export CONFLUENCE_EMAIL="you@example.com"
+  export CONFLUENCE_API_TOKEN="your-api-token"
+  bun run dev
+  ```
