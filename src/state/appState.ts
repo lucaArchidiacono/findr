@@ -27,6 +27,7 @@ export interface AppState {
 export type AppAction =
   | { type: "input/change"; value: string }
   | { type: "search/start"; query: string }
+  | { type: "search/progress"; results: SearchResult[]; errors: PluginSearchError[] }
   | { type: "search/success"; results: SearchResult[]; errors: PluginSearchError[] }
   | { type: "search/error"; message: string; errors: PluginSearchError[] }
   | { type: "results/selectNext" }
@@ -87,6 +88,17 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         feedback: undefined,
         pluginErrors: [],
       };
+    case "search/progress": {
+      const sorted = sortResults(action.results, state.sortOrder);
+      const hasResults = sorted.length > 0;
+      const nextSelectedIndex = clampIndex(state.selectedIndex, sorted.length);
+      return {
+        ...state,
+        results: sorted,
+        pluginErrors: action.errors,
+        selectedIndex: hasResults ? nextSelectedIndex : 0,
+      };
+    }
     case "search/success": {
       const hasResults = action.results.length > 0;
       return {

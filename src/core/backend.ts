@@ -97,9 +97,57 @@ class Backend {
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): Promise<SearchResponse> {
-    const { results: pluginResults, errors } = await this.pluginManager.search(query, options);
-    const aggregated = aggregatePluginResults(pluginResults);
-    return { results: aggregated, errors };
+    const iterator = this.searchStream(query, options);
+    let latest: SearchResponse = { results: [], errors: [] };
+
+    while (true) {
+      const { value, done } = await iterator.next();
+      if (done) {
+        if (value) {
+          return value;
+        }
+        return latest;
+      }
+
+      latest = value;
+    }
+  }
+
+  async *searchStream(
+    query: string,
+    options: { signal?: AbortSignal; limit?: number } = {},
+  ): AsyncGenerator<SearchResponse, SearchResponse, void> {
+    const pluginIterator = this.pluginManager.searchStream(query, options);
+    let hasYielded = false;
+
+    while (true) {
+      const { value, done } = await pluginIterator.next();
+      if (done) {
+        const finalValue = value ?? { results: [], errors: [] };
+        if (!hasYielded) {
+          const aggregatedResults = aggregatePluginResults(finalValue.results);
+          const response: SearchResponse = {
+            results: aggregatedResults,
+            errors: finalValue.errors,
+          };
+          hasYielded = true;
+          yield response;
+          return response;
+        }
+        return {
+          results: aggregatePluginResults(finalValue.results),
+          errors: finalValue.errors,
+        };
+      }
+
+      const aggregatedResults = aggregatePluginResults(value.results);
+      const response: SearchResponse = {
+        results: aggregatedResults,
+        errors: value.errors,
+      };
+      hasYielded = true;
+      yield response;
+    }
   }
 
   getEnabledPluginIds() {

@@ -168,4 +168,49 @@ describe("PluginManager", () => {
     expect(response.errors[0]?.pluginId).toBe("slow");
     expect(abortSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("streams plugin results as they become available", async () => {
+    const manager = new PluginManager();
+
+    const fastPlugin = createPlugin("fast", async () => [
+      {
+        title: "Fast Result",
+        description: "Immediate",
+        url: "https://example.com/fast",
+      },
+    ]);
+
+    const slowPlugin = createPlugin("slow", () => {
+      return new Promise<PluginSearchResult[]>((resolve) => {
+        setTimeout(() => {
+          resolve([
+            {
+              title: "Slow Result",
+              description: "Delayed",
+              url: "https://example.com/slow",
+            },
+          ]);
+        }, 20);
+      });
+    });
+
+    manager.register(fastPlugin);
+    manager.register(slowPlugin);
+
+    const iterator = manager.searchStream("query");
+
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value?.results).toHaveLength(1);
+    expect(first.value?.results[0]?.pluginId).toBe("fast");
+
+    const second = await iterator.next();
+    expect(second.done).toBe(false);
+    expect(second.value?.results).toHaveLength(2);
+    expect(second.value?.results.map((group) => group.pluginId).sort()).toEqual(["fast", "slow"]);
+
+    const final = await iterator.next();
+    expect(final.done).toBe(true);
+    expect(final.value?.results).toHaveLength(2);
+  });
 });
