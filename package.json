@@ -8,32 +8,31 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
-    "format:write": "prettier --write .",
-    "test": "vitest"
+    "format:write": "prettier --write ."
   },
   "devDependencies": {
-    "@eslint/js": "^9.16.0",
+    "@eslint/js": "^9.39.0",
+    "@tsconfig/bun": "^1.0.9",
     "@types/bun": "latest",
-    "@typescript-eslint/eslint-plugin": "^8.16.0",
-    "@typescript-eslint/parser": "^8.16.0",
-    "eslint": "^9.16.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-react": "^7.37.1",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "prettier": "^3.4.2",
-    "typescript-eslint": "^8.16.0",
-    "vitest": "^2.1.5"
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.46.2"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.57",
-    "@ai-sdk/perplexity": "^2.0.15",
-    "@opentui/core": "^0.1.30",
-    "@opentui/react": "^0.1.30",
-    "ai": "^5.0.82",
-    "react": "^19.1.1",
+    "@ai-sdk/openai": "^2.0.59",
+    "@ai-sdk/perplexity": "^2.0.16",
+    "@opentui/core": "^0.1.31",
+    "@opentui/react": "^0.1.31",
+    "ai": "^5.0.86",
+    "react": "^19.2.0",
     "zod": "^4.1.12"
   }
 }
