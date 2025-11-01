@@ -97,30 +97,33 @@ class Backend {
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): Promise<SearchResponse> {
-    let latest: SearchResponse = { results: [], errors: [] };
+    const response: SearchResponse = { results: [], errors: [] };
 
-    for await (const response of this.searchStream(query, options)) {
-      latest = response;
+    for await (const snapshot of this.searchStream(query, options)) {
+      response.results = snapshot.results;
+      response.errors = snapshot.errors;
     }
 
-    return latest;
+    return response;
   }
 
   async *searchStream(
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
-  ): AsyncGenerator<SearchResponse, SearchResponse, void> {
-    let latest: SearchResponse = { results: [], errors: [] };
+  ): AsyncGenerator<SearchResponse, void, void> {
+    const response: SearchResponse = { results: [], errors: [] };
+    const iterator = this.pluginManager.searchStream(query, options);
 
-    for await (const snapshot of this.pluginManager.searchStream(query, options)) {
-      latest = {
-        results: aggregatePluginResults(snapshot.results),
-        errors: snapshot.errors,
-      };
-      yield latest;
+    while (true) {
+      const { value, done } = await iterator.next();
+      if (value) {
+        response.results = aggregatePluginResults(value.results);
+        response.errors = value.errors;
+      }
+
+      if (done) return;
+      yield response;
     }
-
-    return latest;
   }
 
   getEnabledPluginIds() {

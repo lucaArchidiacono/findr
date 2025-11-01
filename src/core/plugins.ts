@@ -123,32 +123,23 @@ export class PluginManager {
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): Promise<PluginSearchResponse> {
-    const iterator = this.searchStream(query, options);
     const collected: PluginSearchResponse = { results: [], errors: [] };
 
-    while (true) {
-      const { value, done } = await iterator.next();
-      if (done) {
-        if (value) {
-          return value;
-        }
-        return collected;
-      }
-
-      collected.results = [...value.results];
-      collected.errors = [...value.errors];
+    for await (const snapshot of this.searchStream(query, options)) {
+      collected.results = snapshot.results;
+      collected.errors = snapshot.errors;
     }
+
+    return collected;
   }
 
   async *searchStream(
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
-  ): AsyncGenerator<PluginSearchResponse, PluginSearchResponse, void> {
+  ): AsyncGenerator<PluginSearchResponse, void, void> {
     const enabledPlugins = this.getEnabledPlugins();
     if (enabledPlugins.length === 0) {
-      const emptyResponse: PluginSearchResponse = { results: [], errors: [] };
-      yield emptyResponse;
-      return emptyResponse;
+      return;
     }
 
     const abortController = new AbortController();
@@ -177,24 +168,16 @@ export class PluginManager {
       );
 
       const pending = new Set(tasks);
-      const aggregated: PluginSearchResultGroup[] = [];
-      const errors: PluginSearchError[] = [];
-      let hasYielded = false;
+      const snapshot: PluginSearchResponse = { results: [], errors: [] };
 
       while (pending.size > 0) {
         const settled = await Promise.race(pending);
-        const original = tasks[settled.index];
-        if (original) {
-          pending.delete(original);
-        }
-
-        const plugin = enabledPlugins[settled.index];
-        if (!plugin) {
-          continue;
-        }
+        const original = tasks[settled.index]!;
+        pending.delete(original);
+        const plugin = enabledPlugins[settled.index]!;
 
         if (settled.status === "fulfilled") {
-          aggregated.push({
+          snapshot.results.push({
             pluginId: plugin.id,
             pluginDisplayName: plugin.displayName,
             results: settled.results ?? [],
@@ -202,34 +185,17 @@ export class PluginManager {
         } else {
           const error =
             settled.error instanceof Error ? settled.error : new Error(String(settled.error));
-          errors.push({
+          snapshot.errors.push({
             pluginId: plugin.id,
             pluginDisplayName: plugin.displayName,
             error,
           });
         }
 
-        const snapshot: PluginSearchResponse = {
-          results: [...aggregated],
-          errors: [...errors],
-        };
-
-        hasYielded = true;
         yield snapshot;
       }
 
-      if (!hasYielded) {
-        const snapshot: PluginSearchResponse = {
-          results: [...aggregated],
-          errors: [...errors],
-        };
-        yield snapshot;
-      }
-
-      return {
-        results: [...aggregated],
-        errors: [...errors],
-      };
+      return;
     } finally {
       options.signal?.removeEventListener("abort", handleExternalAbort);
     }

@@ -128,7 +128,6 @@ export const App = () => {
     let latestResponse: SearchResponse | null = null;
 
     try {
-
       for await (const snapshot of backend.searchStream(query, { signal: controller.signal })) {
         latestResponse = snapshot;
         dispatch({
