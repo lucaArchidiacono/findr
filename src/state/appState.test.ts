@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { SearchResult } from "../core/backend";
 import { createInitialState, appReducer } from "./appState";
 
@@ -43,7 +43,7 @@ describe("appState reducer", () => {
       errors: [],
     });
     expect(successState.isLoading).toBe(false);
-    expect(successState.results[0].id).toBe("b");
+    expect(successState.results[0]?.id).toBe("b");
   });
 
   it("re-sorts results when sort order changes", () => {
@@ -54,8 +54,8 @@ describe("appState reducer", () => {
     };
 
     const sorted = appReducer(populated, { type: "sort/set", sortOrder: "source" });
-    const firstPluginId = sorted.results[0].pluginIds[0] ?? "";
-    const secondPluginId = sorted.results[1].pluginIds[0] ?? "";
+    const firstPluginId = sorted.results[0]?.pluginIds[0] ?? "";
+    const secondPluginId = sorted.results[1]?.pluginIds[0] ?? "";
     expect(firstPluginId <= secondPluginId).toBe(true);
   });
 
