@@ -1,6 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
-import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
@@ -414,12 +413,14 @@ export const App = () => {
           results={state.results}
           selectedIndex={state.selectedIndex}
           isLoading={state.isLoading}
+          focused={state.activePane === "results"}
         />
         <PluginPanel
           plugins={plugins}
           enabledPluginIds={state.enabledPluginIds}
           selectedIndex={state.pluginPanelIndex}
           visible={state.showPluginPanel}
+          focused={state.activePane === "plugins"}
         />
       </box>
 
@@ -439,13 +440,6 @@ export const App = () => {
           isLoading={state.isLoading}
           focused={state.activePane === "search"}
         />
-      </box>
-
-      <box marginTop={1}>
-        <text attributes={TextAttributes.DIM}>
-          Enabled plugins respond to searches in parallel. Toggle providers with :plugins or the
-          sidebar.
-        </text>
       </box>
     </box>
   );

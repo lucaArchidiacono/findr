@@ -7,6 +7,7 @@ interface PluginPanelProps {
   enabledPluginIds: string[];
   selectedIndex: number;
   visible: boolean;
+  focused: boolean;
 }
 
 export const PluginPanel = ({
@@ -14,6 +15,7 @@ export const PluginPanel = ({
   enabledPluginIds,
   selectedIndex,
   visible,
+  focused,
 }: PluginPanelProps) => {
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
   const itemRefs = useRef<Map<string, BoxRenderable>>(new Map());
@@ -62,7 +64,6 @@ export const PluginPanel = ({
     }
   }, [plugins, selectedIndex, visible]);
 
-
   if (!visible) {
     return null;
   }
@@ -73,7 +74,7 @@ export const PluginPanel = ({
       width={32}
       marginLeft={1}
       borderStyle="rounded"
-      borderColor="#444444"
+      borderColor={focused ? "#FFFF00" : "#555555"}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}

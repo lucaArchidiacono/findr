@@ -7,12 +7,13 @@ interface ResultListProps {
   results: SearchResult[];
   selectedIndex: number;
   isLoading: boolean;
+  focused: boolean;
 }
 
 const MAX_DESCRIPTION_LENGTH = 120;
 const MAX_URL_LENGTH = 60;
 
-export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProps) => {
+export const ResultList = ({ results, selectedIndex, isLoading, focused }: ResultListProps) => {
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
   const itemRefs = useRef<Map<string, BoxRenderable>>(new Map());
 
@@ -53,7 +54,7 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
     }
   }, [results, selectedIndex]);
 
-  if (isLoading) {
+  if (isLoading && results.length === 0) {
     return (
       <box
         flexGrow={1}
@@ -86,7 +87,7 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
       ref={scrollRef}
       flexGrow={1}
       borderStyle="rounded"
-      borderColor="#333333"
+      borderColor={focused ? "#FFFF00" : "#555555"}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
@@ -126,6 +127,11 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
           </box>
         );
       })}
+      {isLoading ? (
+        <box justifyContent="center" marginTop={1}>
+          <text attributes={TextAttributes.DIM}>Searching…</text>
+        </box>
+      ) : null}
     </scrollbox>
   );
 };
