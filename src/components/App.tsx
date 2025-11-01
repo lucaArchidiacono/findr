@@ -323,7 +323,22 @@ export const App = () => {
       return;
     }
 
-    if (key.ctrl && key.name === "c") {
+    if (state.activePane === "search") {
+      const isCommandDelete =
+        (key.meta &&
+          !key.option &&
+          !key.ctrl &&
+          (key.name === "backspace" || key.name === "delete")) ||
+        key.sequence === "\x15" ||
+        (key.ctrl && key.name === "u");
+
+      if (isCommandDelete) {
+        updateInputValue("");
+        return;
+      }
+    }
+
+    if (key.ctrl && (key.name === "c" || key.name === "d")) {
       abortControllerRef.current?.abort();
       renderer?.destroy();
       process.exit(0);
