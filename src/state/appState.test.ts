@@ -46,6 +46,27 @@ describe("appState reducer", () => {
     expect(successState.results[0]?.id).toBe("b");
   });
 
+  it("updates results incrementally during search progress", () => {
+    const { state } = setupState();
+    const loadingState = appReducer(state, { type: "search/start", query: "test" });
+
+    const results: SearchResult[] = [
+      createResult("a", 0.1),
+      createResult("c", 0.7),
+      createResult("b", 0.5),
+    ];
+
+    const progressState = appReducer(loadingState, {
+      type: "search/progress",
+      results,
+      errors: [],
+    });
+
+    expect(progressState.isLoading).toBe(true);
+    expect(progressState.results[0]?.id).toBe("c");
+    expect(progressState.pluginErrors).toEqual([]);
+  });
+
   it("re-sorts results when sort order changes", () => {
     const { state } = setupState();
     const populated = {
