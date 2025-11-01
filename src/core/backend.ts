@@ -97,57 +97,30 @@ class Backend {
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): Promise<SearchResponse> {
-    const iterator = this.searchStream(query, options);
     let latest: SearchResponse = { results: [], errors: [] };
 
-    while (true) {
-      const { value, done } = await iterator.next();
-      if (done) {
-        if (value) {
-          return value;
-        }
-        return latest;
-      }
-
-      latest = value;
+    for await (const response of this.searchStream(query, options)) {
+      latest = response;
     }
+
+    return latest;
   }
 
   async *searchStream(
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
   ): AsyncGenerator<SearchResponse, SearchResponse, void> {
-    const pluginIterator = this.pluginManager.searchStream(query, options);
-    let hasYielded = false;
+    let latest: SearchResponse = { results: [], errors: [] };
 
-    while (true) {
-      const { value, done } = await pluginIterator.next();
-      if (done) {
-        const finalValue = value ?? { results: [], errors: [] };
-        if (!hasYielded) {
-          const aggregatedResults = aggregatePluginResults(finalValue.results);
-          const response: SearchResponse = {
-            results: aggregatedResults,
-            errors: finalValue.errors,
-          };
-          hasYielded = true;
-          yield response;
-          return response;
-        }
-        return {
-          results: aggregatePluginResults(finalValue.results),
-          errors: finalValue.errors,
-        };
-      }
-
-      const aggregatedResults = aggregatePluginResults(value.results);
-      const response: SearchResponse = {
-        results: aggregatedResults,
-        errors: value.errors,
+    for await (const snapshot of this.pluginManager.searchStream(query, options)) {
+      latest = {
+        results: aggregatePluginResults(snapshot.results),
+        errors: snapshot.errors,
       };
-      hasYielded = true;
-      yield response;
+      yield latest;
     }
+
+    return latest;
   }
 
   getEnabledPluginIds() {
