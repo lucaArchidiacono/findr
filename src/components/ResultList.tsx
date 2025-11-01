@@ -1,6 +1,7 @@
-import { TextAttributes } from "@opentui/core";
 import type { SearchResult } from "../core/backend";
 import { truncate, truncateUrl } from "../utils/formatting";
+import { BoxRenderable, ScrollBoxRenderable, TextAttributes } from "@opentui/core";
+import { useEffect, useRef } from "react";
 
 interface ResultListProps {
   results: SearchResult[];
@@ -12,6 +13,46 @@ const MAX_DESCRIPTION_LENGTH = 120;
 const MAX_URL_LENGTH = 60;
 
 export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProps) => {
+  const scrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const itemRefs = useRef<Map<string, BoxRenderable>>(new Map());
+
+  useEffect(() => {
+    const scrollbox = scrollRef.current;
+    if (!scrollbox) {
+      return;
+    }
+    const selected = results[selectedIndex];
+    if (!selected) {
+      return;
+    }
+    const target = itemRefs.current.get(selected.id);
+    if (!target) {
+      return;
+    }
+    const viewport = scrollbox.viewport;
+    if (!viewport) {
+      return;
+    }
+    const viewportHeight = viewport.height;
+    if (viewportHeight <= 0) {
+      return;
+    }
+    const currentScrollTop = scrollbox.scrollTop;
+    const itemOffsetTop = target.y - viewport.y + currentScrollTop;
+    const itemOffsetBottom = itemOffsetTop + target.height;
+    const viewportBottom = currentScrollTop + viewportHeight;
+    let nextScrollTop = currentScrollTop;
+    if (itemOffsetTop < currentScrollTop) {
+      nextScrollTop = itemOffsetTop;
+    } else if (itemOffsetBottom > viewportBottom) {
+      nextScrollTop = itemOffsetBottom - viewportHeight;
+    }
+    if (nextScrollTop !== currentScrollTop) {
+      const maxScrollTop = Math.max(0, scrollbox.scrollHeight - viewportHeight);
+      scrollbox.scrollTop = Math.min(Math.max(nextScrollTop, 0), maxScrollTop);
+    }
+  }, [results, selectedIndex]);
+
   if (isLoading) {
     return (
       <box
@@ -42,6 +83,7 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
 
   return (
     <scrollbox
+      ref={scrollRef}
       flexGrow={1}
       borderStyle="rounded"
       borderColor="#333333"
@@ -56,6 +98,13 @@ export const ResultList = ({ results, selectedIndex, isLoading }: ResultListProp
         return (
           <box
             key={result.id}
+            ref={(node) => {
+              if (node) {
+                itemRefs.current.set(result.id, node);
+              } else {
+                itemRefs.current.delete(result.id);
+              }
+            }}
             flexDirection="column"
             marginBottom={1}
             paddingLeft={1}
