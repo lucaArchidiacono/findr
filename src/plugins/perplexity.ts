@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { generateObject } from "ai";
 import { createPerplexity } from "@ai-sdk/perplexity";
-import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
+import type { SearchPlugin, PluginSearchQuery, PluginSearchResult } from "../core/plugins";
 
 const API_KEY_ENV = "PERPLEXITY_API_KEY";
 const DEFAULT_RESULT_LIMIT = 10;
@@ -25,7 +25,11 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
   return Number.isNaN(ts) ? undefined : ts;
 };
 
-const perplexitySearch = async ({ query, limit, signal }: SearchQuery): Promise<SearchResult[]> => {
+const perplexitySearch = async ({
+  query,
+  limit,
+  signal,
+}: PluginSearchQuery): Promise<PluginSearchResult[]> => {
   if (signal.aborted) {
     return [];
   }

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PluginManager } from "../core/plugins";
-import type { AggregatedSearchResult } from "../core/plugins";
+import type { SearchResult } from "../core/backend";
 import { createInitialState, appReducer } from "./appState";
 
-const createResult = (id: string, score: number, pluginId = "mock"): AggregatedSearchResult => ({
+const createResult = (id: string, score: number, pluginId = "mock"): SearchResult => ({
   id,
-  pluginId,
-  pluginDisplayName: pluginId,
+  pluginIds: [pluginId],
+  pluginDisplayNames: [pluginId],
   title: `Title ${id}`,
   description: `Description ${id}`,
   url: `https://example.com/${id}`,
@@ -16,24 +15,15 @@ const createResult = (id: string, score: number, pluginId = "mock"): AggregatedS
 });
 
 const setupState = () => {
-  const manager = new PluginManager();
-  manager.register({
-    id: "mock",
-    displayName: "Mock",
-    async search() {
-      return [];
-    },
-  });
   return {
-    manager,
-    state: createInitialState(manager),
+    state: createInitialState(),
   };
 };
 
 describe("appState reducer", () => {
-  it("initialises with enabled plugins from the manager", () => {
+  it("initialises with default state", () => {
     const { state } = setupState();
-    expect(state.enabledPluginIds).toEqual(["mock"]);
+    expect(state.enabledPluginIds).toEqual([]);
     expect(state.activePane).toBe("search");
   });
 
@@ -42,7 +32,7 @@ describe("appState reducer", () => {
     const loadingState = appReducer(state, { type: "search/start", query: "test" });
     expect(loadingState.isLoading).toBe(true);
 
-    const results: AggregatedSearchResult[] = [
+    const results: SearchResult[] = [
       createResult("a", 0.2),
       createResult("b", 0.9),
       createResult("c", 0.5),
@@ -64,7 +54,9 @@ describe("appState reducer", () => {
     };
 
     const sorted = appReducer(populated, { type: "sort/set", sortOrder: "source" });
-    expect(sorted.results[0].pluginId <= sorted.results[1].pluginId).toBe(true);
+    const firstPluginId = sorted.results[0].pluginIds[0] ?? "";
+    const secondPluginId = sorted.results[1].pluginIds[0] ?? "";
+    expect(firstPluginId <= secondPluginId).toBe(true);
   });
 
   it("clamps plugin panel selection", () => {

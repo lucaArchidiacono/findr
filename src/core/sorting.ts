@@ -1,25 +1,22 @@
-import type { AggregatedSearchResult } from "./plugins";
+import type { SearchResult } from "./backend";
 
 export type SortOrder = "relevance" | "recency" | "source";
 
-const scoreFallback = (result: AggregatedSearchResult) => {
+const scoreFallback = (result: SearchResult) => {
   if (typeof result.score === "number") {
     return result.score;
   }
   return 0;
 };
 
-const timestampFallback = (result: AggregatedSearchResult) => {
+const timestampFallback = (result: SearchResult) => {
   if (typeof result.timestamp === "number") {
     return result.timestamp;
   }
   return result.receivedAt;
 };
 
-export const sortResults = (
-  results: AggregatedSearchResult[],
-  order: SortOrder,
-): AggregatedSearchResult[] => {
+export const sortResults = (results: SearchResult[], order: SortOrder): SearchResult[] => {
   switch (order) {
     case "recency":
       return [...results].sort(

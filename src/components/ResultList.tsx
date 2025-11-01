@@ -1,9 +1,9 @@
 import { TextAttributes } from "@opentui/core";
-import type { AggregatedSearchResult } from "../core/plugins";
+import type { SearchResult } from "../core/backend";
 import { truncate, truncateUrl } from "../utils/formatting";
 
 interface ResultListProps {
-  results: AggregatedSearchResult[];
+  results: SearchResult[];
   selectedIndex: number;
   isLoading: boolean;
 }

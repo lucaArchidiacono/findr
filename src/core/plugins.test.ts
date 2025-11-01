@@ -1,147 +1,115 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, expect, it, vi } from "vitest";
-import { PluginManager, type SearchPlugin } from "./plugins";
-import SearchCache from "./keyValueStorage";
+import { describe, expect, it, vi } from "bun:test";
+import { KeyValueStorage } from "./keyValueStorage";
+import { PluginManager, type SearchPlugin, type PluginSearchResult } from "./plugins";
 
-const createStubPlugin = (
+const createPlugin = (
   id: string,
-  results: { title: string; description: string; url: string }[],
-  options: { enabled?: boolean; fail?: boolean } = {},
+  implementation: (query: string, signal: AbortSignal) => Promise<PluginSearchResult[]>,
+  options: { enabled?: boolean } = {},
 ): SearchPlugin => ({
   id,
   displayName: id,
+  description: `${id} plugin`,
   isEnabledByDefault: options.enabled ?? true,
-  description: `Plugin ${id}`,
-  async search({ query }) {
-    if (options.fail) {
-      throw new Error(`Plugin ${id} failed`);
-    }
-    return results.map((entry, index) => ({
-      ...entry,
-      id: `${id}-${index}`,
-      description: `${entry.description} (${query})`,
-    }));
+  async search({ query, signal }) {
+    return implementation(query, signal);
   },
 });
+
+const createCache = async () => {
+  const dir = await mkdtemp(join(tmpdir(), "findr-plugins-"));
+  const path = join(dir, "cache.json");
+  const cache = new KeyValueStorage<string, PluginSearchResult[]>({ path, ttlMs: 0 });
+  return {
+    cache,
+    async cleanup() {
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
+};
 
 describe("PluginManager", () => {
   it("registers plugins and respects default enabled state", () => {
     const manager = new PluginManager();
-    const alpha = createStubPlugin("alpha", [], { enabled: true });
-    const beta = createStubPlugin("beta", [], { enabled: false });
+    const enabled = createPlugin("alpha", async () => [], { enabled: true });
+    const disabled = createPlugin("beta", async () => [], { enabled: false });
 
-    manager.register(alpha);
-    manager.register(beta);
+    manager.register(enabled);
+    manager.register(disabled);
 
     expect(manager.isEnabled("alpha")).toBe(true);
     expect(manager.isEnabled("beta")).toBe(false);
   });
 
-  it("toggles plugin enabled state", () => {
+  it("returns grouped results and captures plugin errors", async () => {
     const manager = new PluginManager();
-    const plugin = createStubPlugin("toggle", [], { enabled: true });
-    manager.register(plugin);
-
-    expect(manager.isEnabled("toggle")).toBe(true);
-    const disabled = manager.toggle("toggle");
-    expect(disabled).toBe(false);
-    expect(manager.isEnabled("toggle")).toBe(false);
-
-    const enabled = manager.toggle("toggle");
-    expect(enabled).toBe(true);
-    expect(manager.isEnabled("toggle")).toBe(true);
-  });
-
-  it("aggregates results and captures plugin errors", async () => {
-    const manager = new PluginManager();
-    const successPlugin = createStubPlugin("success", [
+    const goodPlugin = createPlugin("good", async (query) => [
       {
-        title: "Result A",
-        description: "First result",
-        url: "https://example.com/a",
+        title: `Welcome ${query}`,
+        description: "Greeting",
+        url: "https://example.com/good",
       },
     ]);
-    const failingPlugin = createStubPlugin(
-      "failure",
-      [
-        {
-          title: "Result B",
-          description: "Second result",
-          url: "https://example.com/b",
-        },
-      ],
-      { fail: true },
-    );
-
-    manager.register(successPlugin);
-    manager.register(failingPlugin);
-
-    const response = await manager.search("test");
-
-    expect(response.results).toHaveLength(1);
-    expect(response.results[0]).toMatchObject({
-      pluginId: "success",
-      title: "Result A",
+    const badPlugin = createPlugin("bad", async () => {
+      throw new Error("Nope");
     });
+
+    manager.register(goodPlugin);
+    manager.register(badPlugin);
+
+    const response = await manager.search("friend");
+
+    expect(response.results).toEqual([
+      {
+        pluginId: "good",
+        pluginDisplayName: "good",
+        results: [
+          {
+            title: "Welcome friend",
+            description: "Greeting",
+            url: "https://example.com/good",
+          },
+        ],
+      },
+    ]);
+
     expect(response.errors).toHaveLength(1);
     expect(response.errors[0]).toMatchObject({
-      pluginId: "failure",
+      pluginId: "bad",
     });
   });
 
-  it("aborts in-flight searches", async () => {
+  it("ignores disabled plugins when searching", async () => {
     const manager = new PluginManager();
-    const abortSpy = vi.fn();
-
-    const slowPlugin: SearchPlugin = {
-      id: "slow",
-      displayName: "Slow",
-      async search({ signal }) {
-        return new Promise((resolve, reject) => {
-          signal.addEventListener("abort", () => {
-            abortSpy();
-            reject(signal.reason ?? new Error("aborted"));
-          });
-          setTimeout(() => resolve([]), 100);
-        });
-      },
-    };
-
-    manager.register(slowPlugin);
-
-    const abortController = new AbortController();
-    const promise = manager.search("query", { signal: abortController.signal });
-    abortController.abort();
-
-    const response = await promise;
-    expect(response.results).toHaveLength(0);
-    expect(response.errors).toHaveLength(1);
-    expect(response?.errors?.[0]?.pluginId).toBe("slow");
-    expect(abortSpy).toHaveBeenCalledOnce();
-  });
-
-  it("returns cached results when available", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "findr-cache-"));
-    const cachePath = join(dir, "cache.json");
-    const cache = new SearchCache({ path: cachePath, ttlMs: 0 });
-    const searchMock = vi.fn().mockResolvedValue([
+    const plugin = createPlugin("only", async () => [
       {
-        title: "Cached result",
-        description: "From plugin",
-        url: "https://example.com/cached",
+        title: "Hidden",
+        description: "Should not be returned",
+        url: "https://example.com/hidden",
       },
     ]);
 
+    manager.register(plugin);
+    manager.setEnabled("only", false);
+
+    const response = await manager.search("anything");
+    expect(response.results).toHaveLength(0);
+  });
+
+  it("returns cached results without invoking the plugin again", async () => {
+    const { cache, cleanup } = await createCache();
     const manager = new PluginManager({ cache });
-    const plugin: SearchPlugin = {
-      id: "cached",
-      displayName: "Cached Plugin",
-      async search(args) {
-        return searchMock(args);
+    const searchMock = vi.fn().mockResolvedValue([
+      {
+        title: "Cached",
+        description: "From plugin",
+        url: "https://example.com/cache",
       },
-    };
+    ]);
+    const plugin = createPlugin("cached", async (query, signal) => searchMock({ query, signal }));
 
     manager.register(plugin);
 
@@ -154,7 +122,50 @@ describe("PluginManager", () => {
       expect(second.results).toHaveLength(1);
       expect(searchMock).toHaveBeenCalledTimes(1);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await cleanup();
     }
+  });
+
+  it("records abort errors when a search is cancelled", async () => {
+    const manager = new PluginManager();
+    const abortSpy = vi.fn();
+
+    const slowPlugin = createPlugin("slow", (_query, signal) => {
+      return new Promise<PluginSearchResult[]>((resolve, reject) => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const rejectWithReason = () => {
+          abortSpy();
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+          }
+          reject(signal.reason ?? new Error("aborted"));
+        };
+
+        if (signal.aborted) {
+          rejectWithReason();
+          return;
+        }
+
+        timeoutId = setTimeout(() => {
+          signal.removeEventListener("abort", rejectWithReason);
+          resolve([]);
+        }, 100);
+
+        signal.addEventListener("abort", rejectWithReason, { once: true });
+      });
+    });
+
+    manager.register(slowPlugin);
+
+    const abortController = new AbortController();
+    const searchPromise = manager.search("query", { signal: abortController.signal });
+    abortController.abort(new Error("cancelled"));
+
+    const response = await searchPromise;
+    expect(response.results).toHaveLength(0);
+    expect(response.errors).toHaveLength(1);
+    expect(response.errors[0]?.pluginId).toBe("slow");
+    expect(abortSpy).toHaveBeenCalledTimes(1);
   });
 });

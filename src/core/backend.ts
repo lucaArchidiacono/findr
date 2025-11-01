@@ -1,21 +1,105 @@
-import { PluginManager } from "./plugins";
+import {
+  PluginManager,
+  type PluginSearchError,
+  type PluginSearchResultGroup,
+  type PluginSearchResult,
+} from "./plugins";
 import { KeyValueStorage } from "./keyValueStorage";
 import plugins from "../plugins";
+
+const createResultId = (index: number) => {
+  const suffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
+  return `${index}-${suffix}`;
+};
+
+export interface SearchResult extends PluginSearchResult {
+  id: string;
+  pluginIds: string[];
+  pluginDisplayNames: string[];
+  receivedAt: number;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  errors: PluginSearchError[];
+}
+
+const aggregatePluginResults = (groups: PluginSearchResultGroup[]): SearchResult[] => {
+  const aggregated = new Map<
+    string,
+    (PluginSearchResult & { pluginId: string; pluginDisplayName: string })[]
+  >();
+
+  groups.forEach(({ pluginId, pluginDisplayName, results }) => {
+    results.forEach((result) => {
+      if (!result) {
+        return;
+      }
+
+      const key = result.url;
+      let pluginResults = aggregated.get(key);
+      if (!pluginResults) {
+        pluginResults = [];
+        aggregated.set(key, pluginResults);
+      }
+
+      pluginResults.push({
+        ...result,
+        pluginId,
+        pluginDisplayName,
+      });
+    });
+  });
+
+  const receivedAt = Date.now();
+  return Array.from(aggregated.values())
+    .map((values, index) => {
+      if (values.length <= 0) {
+        return undefined;
+      }
+
+      values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
+      const baseCombine = Object.assign({}, ...values);
+      const totalScore = values.reduce(
+        (sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0),
+        0,
+      );
+      const combined = {
+        ...baseCombine,
+        ...(values.some((v) => typeof v.score === "number") ? { score: totalScore } : {}),
+      };
+
+      return {
+        ...combined,
+        id: createResultId(index),
+        pluginIds: values.map((value) => value.pluginId),
+        pluginDisplayNames: values.map((value) => value.pluginDisplayName),
+        receivedAt,
+      } as SearchResult;
+    })
+    .filter((value): value is SearchResult => Boolean(value));
+};
 
 class Backend {
   private readonly pluginManager: PluginManager;
 
   constructor() {
     this.pluginManager = new PluginManager({
-      cache: new KeyValueStorage({ filename: "findr-cache.json" }),
+      cache: new KeyValueStorage<string, PluginSearchResult[]>({ filename: "findr-cache.json" }),
     });
     plugins.forEach((plugin) => {
       this.pluginManager.register(plugin);
     });
   }
 
-  search(query: string, options: { signal?: AbortSignal; limit?: number } = {}) {
-    return this.pluginManager.search(query, options);
+  async search(
+    query: string,
+    options: { signal?: AbortSignal; limit?: number } = {},
+  ): Promise<SearchResponse> {
+    const { results: pluginResults, errors } = await this.pluginManager.search(query, options);
+    const aggregated = aggregatePluginResults(pluginResults);
+    return { results: aggregated, errors };
   }
 
   getEnabledPluginIds() {

@@ -1,4 +1,5 @@
-import type { AggregatedSearchResult, PluginExecutionError } from "../core/plugins";
+import type { SearchResult } from "../core/backend";
+import type { PluginSearchError } from "../core/plugins";
 import { sortResults, type SortOrder } from "../core/sorting";
 
 export interface CommandFeedback {
@@ -9,11 +10,11 @@ export interface CommandFeedback {
 export interface AppState {
   inputValue: string;
   query: string;
-  results: AggregatedSearchResult[];
+  results: SearchResult[];
   sortOrder: SortOrder;
   selectedIndex: number;
   isLoading: boolean;
-  pluginErrors: PluginExecutionError[];
+  pluginErrors: PluginSearchError[];
   enabledPluginIds: string[];
   showPluginPanel: boolean;
   showConsole: boolean;
@@ -26,8 +27,8 @@ export interface AppState {
 export type AppAction =
   | { type: "input/change"; value: string }
   | { type: "search/start"; query: string }
-  | { type: "search/success"; results: AggregatedSearchResult[]; errors: PluginExecutionError[] }
-  | { type: "search/error"; message: string; errors: PluginExecutionError[] }
+  | { type: "search/success"; results: SearchResult[]; errors: PluginSearchError[] }
+  | { type: "search/error"; message: string; errors: PluginSearchError[] }
   | { type: "results/selectNext" }
   | { type: "results/selectPrevious" }
   | { type: "results/select"; index: number }

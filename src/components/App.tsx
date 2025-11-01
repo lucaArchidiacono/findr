@@ -4,7 +4,7 @@ import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
-import type { AggregateSearchResponse } from "../core/plugins";
+import type { SearchResponse } from "../core/backend";
 import SearchBar from "./SearchBar";
 import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
@@ -93,7 +93,7 @@ export const App = () => {
     setPane(nextPane);
   };
 
-  const handleSearchResponse = (response: AggregateSearchResponse) => {
+  const handleSearchResponse = (response: SearchResponse) => {
     dispatch({
       type: "search/success",
       results: response.results,
@@ -101,7 +101,7 @@ export const App = () => {
     });
   };
 
-  const handleSearchError = (message: string, errors: AggregateSearchResponse["errors"]) => {
+  const handleSearchError = (message: string, errors: SearchResponse["errors"]) => {
     dispatch({
       type: "search/error",
       message,

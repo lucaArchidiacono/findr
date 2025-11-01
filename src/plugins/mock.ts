@@ -1,6 +1,6 @@
-import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
+import type { SearchPlugin, PluginSearchQuery, PluginSearchResult } from "../core/plugins";
 
-const MOCK_DATA: Omit<SearchResult, "id">[] = [
+const MOCK_DATA: Omit<PluginSearchResult, "id">[] = [
   {
     title: "Building pluggable TUIs with OpenTUI",
     description: "A step-by-step guide on architecting modular terminal UIs with plugins.",
@@ -35,7 +35,7 @@ const MOCK_DATA: Omit<SearchResult, "id">[] = [
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const filterResults = (query: string): SearchResult[] => {
+const filterResults = (query: string): PluginSearchResult[] => {
   const normalizedQuery = query.trim().toLowerCase();
 
   if (!normalizedQuery) {
@@ -58,7 +58,7 @@ const filterResults = (query: string): SearchResult[] => {
   }));
 };
 
-async function mockSearch(query: SearchQuery): Promise<SearchResult[]> {
+async function mockSearch(query: PluginSearchQuery): Promise<PluginSearchResult[]> {
   if (query.signal.aborted) {
     return [];
   }

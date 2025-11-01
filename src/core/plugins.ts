@@ -1,12 +1,12 @@
 import type KeyValueStorage from "./keyValueStorage";
 
-export interface SearchQuery {
+export interface PluginSearchQuery {
   query: string;
   signal: AbortSignal;
   limit?: number;
 }
 
-export interface SearchResult {
+export interface PluginSearchResult {
   id?: string;
   title: string;
   description: string;
@@ -16,24 +16,12 @@ export interface SearchResult {
   metadata?: Record<string, unknown>;
 }
 
-export interface SearchResultWithPlugin extends SearchResult {
-  pluginId: string;
-  pluginDisplayName: string;
-}
-
-export interface AggregatedSearchResult extends SearchResult {
-  id: string;
-  pluginIds: string[];
-  pluginDisplayNames: string[];
-  receivedAt: number;
-}
-
 export interface SearchPlugin {
   id: string;
   displayName: string;
   description?: string;
   isEnabledByDefault?: boolean;
-  search(query: SearchQuery): Promise<SearchResult[]>;
+  search(query: PluginSearchQuery): Promise<PluginSearchResult[]>;
 }
 
 export interface PluginRegistration {
@@ -41,22 +29,22 @@ export interface PluginRegistration {
   enabled: boolean;
 }
 
-export interface PluginExecutionError {
+export interface PluginSearchError {
   pluginId: string;
   pluginDisplayName: string;
   error: Error;
 }
 
-export interface AggregateSearchResponse {
-  results: AggregatedSearchResult[];
-  errors: PluginExecutionError[];
+export interface PluginSearchResultGroup {
+  pluginId: string;
+  pluginDisplayName: string;
+  results: PluginSearchResult[];
 }
 
-const createResultId = (index: number) => {
-  const suffix =
-    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now();
-  return `${index}-${suffix}`;
-};
+export interface PluginSearchResponse {
+  results: PluginSearchResultGroup[];
+  errors: PluginSearchError[];
+}
 
 export interface PluginManagerOptions {
   cache?: KeyValueStorage;
@@ -134,7 +122,7 @@ export class PluginManager {
   async search(
     query: string,
     options: { signal?: AbortSignal; limit?: number } = {},
-  ): Promise<AggregateSearchResponse> {
+  ): Promise<PluginSearchResponse> {
     const enabledPlugins = this.getEnabledPlugins();
     if (enabledPlugins.length === 0) {
       return { results: [], errors: [] };
@@ -150,102 +138,58 @@ export class PluginManager {
     options.signal?.addEventListener("abort", handleExternalAbort);
 
     try {
-      const settledResults = await Promise.allSettled(
+      const settled = await Promise.allSettled(
         enabledPlugins.map(async (plugin) => {
           if (controllerSignal.aborted) {
             throw controllerSignal.reason ?? new Error("Search aborted");
           }
 
-          if (this.cache) {
-            const cachedResults = await this.getCachedResults(plugin.id, query, options.limit);
-            if (controllerSignal.aborted) {
-              throw controllerSignal.reason ?? new Error("Search aborted");
-            }
-            if (cachedResults) {
-              return { plugin, results: cachedResults };
-            }
+          const cached = await this.getCachedResults(plugin.id, query, options.limit);
+          if (cached) {
+            return { plugin, results: cached };
           }
 
-          const results = await plugin.search({
+          const rawResults = await plugin.search({
             query,
             signal: controllerSignal,
             limit: options.limit,
           });
 
+          const results = Array.isArray(rawResults) ? rawResults : [];
+
           if (this.cache) {
             await this.storeResultsInCache(plugin.id, query, options.limit, results);
           }
+
           return { plugin, results };
         }),
       );
 
-      const aggregated = new Map<
-        string,
-        (SearchResult & { pluginId: string; pluginDisplayName: string })[]
-      >();
-      const errors: PluginExecutionError[] = [];
+      const results: PluginSearchResultGroup[] = [];
+      const errors: PluginSearchError[] = [];
 
-      settledResults.forEach((settled, idx) => {
-        const plugin = enabledPlugins[idx];
-        if (!plugin) return;
+      settled.forEach((entry, index) => {
+        const plugin = enabledPlugins[index];
+        if (!plugin) {
+          return;
+        }
 
-        if (settled && settled.status === "fulfilled") {
-          const results = settled.value.results ?? [];
-          results.forEach((result) => {
-            if (!result) return;
-            const key = result.url;
-            let pluginResults = aggregated.get(key);
-            if (!pluginResults) {
-              pluginResults = [];
-              aggregated.set(key, pluginResults);
-            }
-            pluginResults.push({
-              ...result,
-              pluginId: plugin.id,
-              pluginDisplayName: plugin.displayName,
-            });
+        if (entry.status === "fulfilled") {
+          results.push({
+            pluginId: plugin.id,
+            pluginDisplayName: plugin.displayName,
+            results: entry.value.results ?? [],
           });
         } else {
           errors.push({
             pluginId: plugin.id,
             pluginDisplayName: plugin.displayName,
-            error:
-              settled?.reason instanceof Error
-                ? settled.reason
-                : new Error(String(settled?.reason)),
+            error: entry.reason instanceof Error ? entry.reason : new Error(String(entry.reason)),
           });
         }
       });
 
-      const receivedAt = Date.now();
-      const mergedResults: AggregatedSearchResult[] = Array.from(aggregated.values())
-        .map((values, index) => {
-          if (values.length <= 0) {
-            return undefined;
-          }
-
-          values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
-          const baseCombine = Object.assign({}, ...values);
-          const totalScore = values.reduce(
-            (sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0),
-            0,
-          );
-          const combined = {
-            ...baseCombine,
-            ...(values.some((v) => typeof v.score === "number") ? { score: totalScore } : {}),
-          };
-
-          return {
-            ...combined,
-            id: createResultId(index),
-            pluginIds: values.map((value) => value.pluginId),
-            pluginDisplayNames: values.map((value) => value.pluginDisplayName),
-            receivedAt,
-          };
-        })
-        .filter((value) => value !== undefined);
-
-      return { results: mergedResults, errors };
+      return { results, errors };
     } finally {
       options.signal?.removeEventListener("abort", handleExternalAbort);
     }
@@ -255,14 +199,14 @@ export class PluginManager {
     pluginId: string,
     query: string,
     limit: number | undefined,
-  ): Promise<SearchResult[] | undefined> {
+  ): Promise<PluginSearchResult[] | undefined> {
     if (!this.cache) {
       return undefined;
     }
 
     try {
       return (await this.cache.get(`${pluginId}-${query}-${limit ?? ""}`)) as
-        | SearchResult[]
+        | PluginSearchResult[]
         | undefined;
     } catch (error) {
       console.warn(
@@ -277,11 +221,12 @@ export class PluginManager {
     pluginId: string,
     query: string,
     limit: number | undefined,
-    results: SearchResult[],
+    results: PluginSearchResult[],
   ): Promise<void> {
     if (!this.cache) {
       return;
     }
+
     try {
       await this.cache.set(`${pluginId}-${query}-${limit ?? ""}`, results);
     } catch (error) {

@@ -1,4 +1,4 @@
-import type { SearchPlugin, SearchQuery, SearchResult } from "../core/plugins";
+import type { SearchPlugin, PluginSearchQuery, PluginSearchResult } from "../core/plugins";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const DEFAULT_RESULT_LIMIT = 10;
@@ -25,11 +25,7 @@ interface BraveSearchResponse {
 }
 
 const parseTimestamp = (result: BraveWebResult): number | undefined => {
-  const candidates = [
-    result.page_age,
-    result.meta_url?.published,
-    result.meta_url?.last_crawled,
-  ];
+  const candidates = [result.page_age, result.meta_url?.published, result.meta_url?.last_crawled];
 
   for (const candidate of candidates) {
     if (!candidate) {
@@ -44,7 +40,7 @@ const parseTimestamp = (result: BraveWebResult): number | undefined => {
   return undefined;
 };
 
-const normalizeResult = (result: BraveWebResult): SearchResult | undefined => {
+const normalizeResult = (result: BraveWebResult): PluginSearchResult | undefined => {
   if (!result.title || !result.url) {
     return undefined;
   }
@@ -59,7 +55,11 @@ const normalizeResult = (result: BraveWebResult): SearchResult | undefined => {
   };
 };
 
-const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<SearchResult[]> => {
+const braveSearch = async ({
+  query,
+  limit,
+  signal,
+}: PluginSearchQuery): Promise<PluginSearchResult[]> => {
   if (signal.aborted) {
     return [];
   }
@@ -88,7 +88,9 @@ const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<Searc
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Brave request failed (${response.status}): ${errorBody || response.statusText}`);
+      throw new Error(
+        `Brave request failed (${response.status}): ${errorBody || response.statusText}`,
+      );
     }
 
     const data = (await response.json()) as BraveSearchResponse;
@@ -96,7 +98,7 @@ const braveSearch = async ({ query, limit, signal }: SearchQuery): Promise<Searc
 
     return results
       .map(normalizeResult)
-      .filter((item): item is SearchResult => Boolean(item))
+      .filter((item): item is PluginSearchResult => Boolean(item))
       .slice(0, desiredLimit);
   } catch (error) {
     if (signal.aborted) {

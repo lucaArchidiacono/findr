@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { tmpdir } from "node:os";
 
 const CACHE_FILE_VERSION = 1;
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
@@ -35,20 +35,12 @@ const resolveCacheFilePath = ({
     return join(overriddenDir, resolvedFilename);
   }
 
-  const home = typeof homedir === "function" ? homedir() : undefined;
-  if (!home) {
+  const tmp = typeof tmpdir === "function" ? tmpdir() : undefined;
+  if (!tmp) {
     return join(".", ".findr", resolvedFilename);
   }
 
-  const platform = typeof process !== "undefined" ? process.platform : undefined;
-  if (platform === "darwin") {
-    return join(home, "Library", "Caches", "findr", resolvedFilename);
-  }
-  if (platform === "win32") {
-    const localAppData = Bun.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
-    return join(localAppData, "findr", "Cache", resolvedFilename);
-  }
-  return join(home, ".cache", "findr", resolvedFilename);
+  return join(tmp, "findr", resolvedFilename);
 };
 
 const resolveTtl = (configuredTtl?: number): number | undefined => {

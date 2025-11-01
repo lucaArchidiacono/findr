@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { KeyValueStorage } from "./keyValueStorage";
 
 const createTempCache = async (filename = "cache.json") => {
@@ -25,7 +25,8 @@ describe("KeyValueStorage", () => {
 
     try {
       await storage.set("visits", { count: 3 });
-      await expect(storage.get("visits")).resolves.toEqual({ count: 3 });
+      const result = await storage.get("visits");
+      expect(result).toEqual({ count: 3 });
     } finally {
       await temp.cleanup();
     }
