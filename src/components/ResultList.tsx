@@ -54,83 +54,84 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
     }
   }, [results, selectedIndex]);
 
-  if (isLoading && results.length === 0) {
-    return (
-      <box
-        flexGrow={1}
-        justifyContent="center"
-        alignItems="center"
-        borderStyle="rounded"
-        borderColor="#333333"
-      >
-        <text attributes={TextAttributes.DIM}>Searching…</text>
-      </box>
-    );
-  }
-
-  if (results.length === 0) {
-    return (
-      <box
-        flexGrow={1}
-        justifyContent="center"
-        alignItems="center"
-        borderStyle="rounded"
-        borderColor="#333333"
-      >
-        <text attributes={TextAttributes.DIM}>No results yet. Try a query or :help.</text>
-      </box>
-    );
-  }
+  const showEmptyMessage = results.length === 0;
+  const emptyMessage = isLoading ? "Searching…" : "No results yet. Try a query or :help.";
 
   return (
-    <scrollbox
-      ref={scrollRef}
+    <box
       flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
+      flexDirection="column"
+      minHeight={0}
+      alignSelf="stretch"
       borderStyle="rounded"
       borderColor={focused ? "#FFFFFF" : "#555555"}
-      paddingLeft={1}
-      paddingRight={1}
-      paddingTop={1}
-      paddingBottom={1}
     >
-      {results.map((result, index) => {
-        const isSelected = index === selectedIndex;
-
-        return (
-          <box
-            key={result.id}
-            ref={(node) => {
-              if (node) {
-                itemRefs.current.set(result.id, node);
-              } else {
-                itemRefs.current.delete(result.id);
-              }
-            }}
-            flexDirection="column"
-            marginBottom={1}
-            paddingLeft={1}
-            paddingRight={1}
-            paddingTop={1}
-            paddingBottom={1}
-            backgroundColor={isSelected ? "#1d1f21" : "transparent"}
-          >
-            <text attributes={TextAttributes.BOLD}>{result.title}</text>
-            <text attributes={TextAttributes.DIM}>
-              {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
-            </text>
-            <text attributes={TextAttributes.UNDERLINE}>
-              {truncateUrl(result.url, MAX_URL_LENGTH)}
-            </text>
-            <text attributes={TextAttributes.DIM}>{result.pluginDisplayNames.join(", ")}</text>
-          </box>
-        );
-      })}
-      {isLoading ? (
-        <box justifyContent="center" marginTop={1}>
-          <text attributes={TextAttributes.DIM}>Searching…</text>
+      {showEmptyMessage ? (
+        <box
+          flexGrow={1}
+          justifyContent="center"
+          alignItems="center"
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          <text attributes={TextAttributes.DIM}>{emptyMessage}</text>
         </box>
-      ) : null}
-    </scrollbox>
+      ) : (
+        <scrollbox
+          ref={scrollRef}
+          flexGrow={1}
+          flexShrink={1}
+          flexBasis={0}
+          minHeight={0}
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          {results.map((result, index) => {
+            const isSelected = index === selectedIndex;
+
+            return (
+              <box
+                key={result.id}
+                ref={(node) => {
+                  if (node) {
+                    itemRefs.current.set(result.id, node);
+                  } else {
+                    itemRefs.current.delete(result.id);
+                  }
+                }}
+                flexDirection="column"
+                marginBottom={1}
+                paddingLeft={1}
+                paddingRight={1}
+                paddingTop={1}
+                paddingBottom={1}
+                backgroundColor={isSelected ? "#1d1f21" : "transparent"}
+              >
+                <text attributes={TextAttributes.BOLD}>{result.title}</text>
+                <text attributes={TextAttributes.DIM}>
+                  {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
+                </text>
+                <text attributes={TextAttributes.UNDERLINE}>
+                  {truncateUrl(result.url, MAX_URL_LENGTH)}
+                </text>
+                <text attributes={TextAttributes.DIM}>{result.pluginDisplayNames.join(", ")}</text>
+              </box>
+            );
+          })}
+          {isLoading ? (
+            <box justifyContent="center" marginTop={1}>
+              <text attributes={TextAttributes.DIM}>Searching…</text>
+            </box>
+          ) : null}
+        </scrollbox>
+      )}
+    </box>
   );
 };
 
