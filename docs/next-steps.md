@@ -5,8 +5,8 @@ future sessions can resume quickly.
 
 ## Current State
 
-- **Core architecture** – `src/core/plugins.ts`, `src/core/sorting.ts`: plugin contracts, manager,
-  and result sorting utilities.
+- **Core architecture** – `src/core/plugins.ts`, `src/core/backend.ts`: plugin contracts, lifecycle
+  management, search orchestration, caching, and result sorting.
 - **Plugins** – `src/plugins/index.ts`, `src/plugins/mock.ts`, `src/plugins/brave.ts`: plugin
   registry with a local mock provider and Brave Search integration (requires `BRAVE_API_KEY`).
 - **State management** – `src/state/appState.ts`, `src/state/commandParser.ts`: reducer, pane
@@ -15,9 +15,9 @@ future sessions can resume quickly.
   StatusBar, and FeedbackBar to deliver the terminal UI workflow.
 - **Tooling** – ESLint (flat config), Prettier (`prettier.config.mjs`), Vitest (`vitest.config.ts`),
   and scripts in `package.json` (`lint`, `lint:fix`, `format`, `format:write`, `test`).
-- **Test coverage** – Vitest suites in `src/core/plugins.test.ts`,
-  `src/state/appState.test.ts`, and `src/state/commandParser.test.ts` assert plugin aggregation,
-  reducer behaviour, and command parsing.
+- **Test coverage** – Vitest suites in `src/core/backend.test.ts`, `src/core/plugins.test.ts`,
+  `src/state/appState.test.ts`, and `src/state/commandParser.test.ts` assert backend aggregation,
+  caching, reducer behaviour, and command parsing.
 - **Documentation** – `README.md` now covers setup, commands, keybindings, and plugin development.
 
 ## Quality Status
@@ -49,6 +49,7 @@ bun test
 - Main UI: `src/components/App.tsx`
 - Plugin contract: `src/core/plugins.ts`
 - Command parser: `src/state/commandParser.ts`
-- Tests: `src/core/plugins.test.ts`, `src/state/appState.test.ts`, `src/state/commandParser.test.ts`
+- Tests: `src/core/backend.test.ts`, `src/core/plugins.test.ts`, `src/state/appState.test.ts`,
+  `src/state/commandParser.test.ts`
 
 Keep this file updated during further sessions to maintain continuity.

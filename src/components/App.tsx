@@ -1,10 +1,9 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
-import { TextAttributes } from "@opentui/core";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
-import type { SearchResponse } from "../core/backend";
+import type { SearchResponse, SortOrder } from "../core/backend";
 import SearchBar from "./SearchBar";
 import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
@@ -109,7 +108,7 @@ export const App = () => {
     });
   };
 
-  const performSearch = async (rawQuery: string) => {
+  const performSearch = async (rawQuery: string, sortOrder: SortOrder) => {
     const query = rawQuery.trim();
     if (!query) {
       dispatch({
@@ -125,10 +124,24 @@ export const App = () => {
 
     dispatch({ type: "search/start", query });
 
+    let latestResponse: SearchResponse | null = null;
+
     try {
-      const response = await backend.search(query, { signal: controller.signal });
-      handleSearchResponse(response);
-      if (response.results.length === 0) {
+      for await (const snapshot of backend.searchStream(query, {
+        signal: controller.signal,
+        sortOrder,
+      })) {
+        latestResponse = snapshot;
+        dispatch({
+          type: "search/progress",
+          results: snapshot.results,
+          errors: snapshot.errors,
+        });
+      }
+
+      const finalResponse = latestResponse ?? { results: [], errors: [] };
+      handleSearchResponse(finalResponse);
+      if (finalResponse.results.length === 0) {
         dispatch({
           type: "feedback/set",
           feedback: toFeedback("No results found. Try another query.", "info"),
@@ -138,7 +151,8 @@ export const App = () => {
       if (controller.signal.aborted) {
         return;
       }
-      handleSearchError(error instanceof Error ? error.message : "Search failed unexpectedly.", []);
+      const message = error instanceof Error ? error.message : "Search failed unexpectedly.";
+      handleSearchError(message, latestResponse?.errors ?? []);
     }
   };
 
@@ -175,7 +189,7 @@ export const App = () => {
     }
 
     if (parsed.type === "search") {
-      await performSearch(parsed.query);
+      await performSearch(parsed.query, state.sortOrder);
       return "keep";
     }
 
@@ -240,6 +254,9 @@ export const App = () => {
           type: "sort/set",
           sortOrder: command.sortOrder,
         });
+        if (state.query) {
+          await performSearch(state.query, command.sortOrder);
+        }
         dispatch({
           type: "feedback/set",
           feedback: toFeedback(`Sort order set to ${command.sortOrder}.`, "info"),
@@ -402,12 +419,14 @@ export const App = () => {
           results={state.results}
           selectedIndex={state.selectedIndex}
           isLoading={state.isLoading}
+          focused={state.activePane === "results"}
         />
         <PluginPanel
           plugins={plugins}
           enabledPluginIds={state.enabledPluginIds}
           selectedIndex={state.pluginPanelIndex}
           visible={state.showPluginPanel}
+          focused={state.activePane === "plugins"}
         />
       </box>
 
@@ -427,13 +446,6 @@ export const App = () => {
           isLoading={state.isLoading}
           focused={state.activePane === "search"}
         />
-      </box>
-
-      <box marginTop={1}>
-        <text attributes={TextAttributes.DIM}>
-          Enabled plugins respond to searches in parallel. Toggle providers with :plugins or the
-          sidebar.
-        </text>
       </box>
     </box>
   );
