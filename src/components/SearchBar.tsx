@@ -1,5 +1,3 @@
-import { TextAttributes } from "@opentui/core";
-
 interface SearchBarProps {
   value: string;
   placeholder?: string;
@@ -30,14 +28,12 @@ export const SearchBar = ({
       flexDirection="row"
       alignItems="center"
       borderStyle="rounded"
-      borderColor={focused ? "#FFFF00" : "#555555"}
+      borderColor={focused ? "#FFFFFF" : "#555555"}
       paddingLeft={1}
       paddingRight={1}
       height={3}
     >
-      <text marginRight={1} attributes={isLoading ? TextAttributes.BLINK : undefined}>
-        {isLoading ? "…" : ">"}
-      </text>
+      <text marginRight={1}>{isLoading ? "…" : ">"}</text>
       <input
         value={value}
         placeholder={placeholder}

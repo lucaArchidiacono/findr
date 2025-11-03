@@ -87,7 +87,7 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
       ref={scrollRef}
       flexGrow={1}
       borderStyle="rounded"
-      borderColor={focused ? "#FFFF00" : "#555555"}
+      borderColor={focused ? "#FFFFFF" : "#555555"}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
@@ -114,16 +114,14 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
             paddingBottom={1}
             backgroundColor={isSelected ? "#1d1f21" : "transparent"}
           >
-            <box backgroundColor={isSelected ? "#333333" : "transparent"}>
-              <text attributes={TextAttributes.BOLD}>{result.title}</text>
-              <text attributes={TextAttributes.DIM}>
-                {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
-              </text>
-              <text attributes={TextAttributes.UNDERLINE}>
-                {truncateUrl(result.url, MAX_URL_LENGTH)}
-              </text>
-              <text attributes={TextAttributes.DIM}>{result.pluginDisplayNames.join(", ")}</text>
-            </box>
+            <text attributes={TextAttributes.BOLD}>{result.title}</text>
+            <text attributes={TextAttributes.DIM}>
+              {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
+            </text>
+            <text attributes={TextAttributes.UNDERLINE}>
+              {truncateUrl(result.url, MAX_URL_LENGTH)}
+            </text>
+            <text attributes={TextAttributes.DIM}>{result.pluginDisplayNames.join(", ")}</text>
           </box>
         );
       })}
