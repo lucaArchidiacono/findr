@@ -86,8 +86,8 @@ describe("Backend search", () => {
       expect(betaSearch).toHaveBeenCalledTimes(1);
 
       expect(collectUrls(relevanceResponse)).toEqual([
-        "https://example.com/beta",
         "https://example.com/shared",
+        "https://example.com/beta",
         "https://example.com/alpha",
       ]);
 
