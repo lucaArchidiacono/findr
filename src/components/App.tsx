@@ -3,7 +3,7 @@ import { useKeyboard, useRenderer } from "@opentui/react";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
-import type { SearchResponse } from "../core/backend";
+import type { SearchResponse, SortOrder } from "../core/backend";
 import SearchBar from "./SearchBar";
 import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
@@ -108,7 +108,7 @@ export const App = () => {
     });
   };
 
-  const performSearch = async (rawQuery: string) => {
+  const performSearch = async (rawQuery: string, sortOrder: SortOrder) => {
     const query = rawQuery.trim();
     if (!query) {
       dispatch({
@@ -127,7 +127,10 @@ export const App = () => {
     let latestResponse: SearchResponse | null = null;
 
     try {
-      for await (const snapshot of backend.searchStream(query, { signal: controller.signal })) {
+      for await (const snapshot of backend.searchStream(query, {
+        signal: controller.signal,
+        sortOrder,
+      })) {
         latestResponse = snapshot;
         dispatch({
           type: "search/progress",
@@ -186,7 +189,7 @@ export const App = () => {
     }
 
     if (parsed.type === "search") {
-      await performSearch(parsed.query);
+      await performSearch(parsed.query, state.sortOrder);
       return "keep";
     }
 
@@ -251,6 +254,9 @@ export const App = () => {
           type: "sort/set",
           sortOrder: command.sortOrder,
         });
+        if (state.query) {
+          await performSearch(state.query, command.sortOrder);
+        }
         dispatch({
           type: "feedback/set",
           feedback: toFeedback(`Sort order set to ${command.sortOrder}.`, "info"),

@@ -43,7 +43,7 @@ describe("appState reducer", () => {
       errors: [],
     });
     expect(successState.isLoading).toBe(false);
-    expect(successState.results[0]?.id).toBe("b");
+    expect(successState.results).toBe(results);
   });
 
   it("updates results incrementally during search progress", () => {
@@ -63,11 +63,11 @@ describe("appState reducer", () => {
     });
 
     expect(progressState.isLoading).toBe(true);
-    expect(progressState.results[0]?.id).toBe("c");
+    expect(progressState.results).toBe(results);
     expect(progressState.pluginErrors).toEqual([]);
   });
 
-  it("re-sorts results when sort order changes", () => {
+  it("stores requested sort order without mutating results", () => {
     const { state } = setupState();
     const populated = {
       ...state,
@@ -75,9 +75,8 @@ describe("appState reducer", () => {
     };
 
     const sorted = appReducer(populated, { type: "sort/set", sortOrder: "source" });
-    const firstPluginId = sorted.results[0]?.pluginIds[0] ?? "";
-    const secondPluginId = sorted.results[1]?.pluginIds[0] ?? "";
-    expect(firstPluginId <= secondPluginId).toBe(true);
+    expect(sorted.sortOrder).toBe("source");
+    expect(sorted.results).toBe(populated.results);
   });
 
   it("clamps plugin panel selection", () => {

@@ -1,6 +1,5 @@
-import type { SearchResult } from "../core/backend";
+import type { SearchResult, SortOrder } from "../core/backend";
 import type { PluginSearchError } from "../core/plugins";
-import { sortResults, type SortOrder } from "../core/sorting";
 
 export interface CommandFeedback {
   message: string;
@@ -89,22 +88,23 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         pluginErrors: [],
       };
     case "search/progress": {
-      const sorted = sortResults(action.results, state.sortOrder);
-      const hasResults = sorted.length > 0;
-      const nextSelectedIndex = clampIndex(state.selectedIndex, sorted.length);
+      const results = action.results;
+      const hasResults = results.length > 0;
+      const nextSelectedIndex = clampIndex(state.selectedIndex, results.length);
       return {
         ...state,
-        results: sorted,
+        results,
         pluginErrors: action.errors,
         selectedIndex: hasResults ? nextSelectedIndex : 0,
       };
     }
     case "search/success": {
-      const hasResults = action.results.length > 0;
+      const results = action.results;
+      const hasResults = results.length > 0;
       return {
         ...state,
         isLoading: false,
-        results: sortResults(action.results, state.sortOrder),
+        results,
         pluginErrors: action.errors,
         selectedIndex: hasResults ? 0 : 0,
         errorMessage: undefined,
@@ -146,7 +146,6 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         sortOrder: action.sortOrder,
-        results: sortResults(state.results, action.sortOrder),
       };
     case "plugins/setEnabled":
       return {
