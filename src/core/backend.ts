@@ -1,7 +1,6 @@
 import {
   PluginManager,
   type PluginSearchError,
-  type PluginSearchResultGroup,
   type PluginSearchResult,
   type SearchPlugin,
 } from "./plugins";
@@ -81,61 +80,119 @@ const sortResults = (results: SearchResult[], order: SortOrder): SearchResult[] 
   }
 };
 
-const aggregatePluginResults = (groups: PluginSearchResultGroup[]): SearchResult[] => {
-  const aggregated = new Map<
-    string,
-    (PluginSearchResult & { pluginId: string; pluginDisplayName: string })[]
-  >();
+interface AggregatedPluginEntry {
+  pluginId: string;
+  pluginDisplayName: string;
+  result: PluginSearchResult;
+}
 
-  for (const { pluginId, pluginDisplayName, results } of groups) {
+interface AggregatedEntry {
+  pluginEntries: AggregatedPluginEntry[];
+  combined?: PluginSearchResult;
+  dirty: boolean;
+  hasScore: boolean;
+  scoreTotal: number;
+}
+
+class ResultAggregator {
+  private readonly entries = new Map<string, AggregatedEntry>();
+
+  addResults(
+    pluginId: string,
+    pluginDisplayName: string,
+    results: PluginSearchResult[] | undefined,
+  ) {
+    if (!Array.isArray(results) || results.length === 0) {
+      return;
+    }
+
     for (const result of results) {
       if (!result) {
         continue;
       }
 
       const key = result.url;
-      let pluginResults = aggregated.get(key);
-      if (!pluginResults) {
-        pluginResults = [];
-        aggregated.set(key, pluginResults);
+      let entry = this.entries.get(key);
+
+      if (!entry) {
+        entry = {
+          pluginEntries: [],
+          dirty: true,
+          hasScore: false,
+          scoreTotal: 0,
+        };
+        this.entries.set(key, entry);
       }
 
-      pluginResults.push({
-        ...result,
+      const pluginEntry: AggregatedPluginEntry = {
         pluginId,
         pluginDisplayName,
-      });
+        result: { ...result },
+      };
+
+      const insertIndex = entry.pluginEntries.findIndex((existing) =>
+        pluginId.localeCompare(existing.pluginId) > 0,
+      );
+
+      if (insertIndex === -1) {
+        entry.pluginEntries.push(pluginEntry);
+      } else {
+        entry.pluginEntries.splice(insertIndex, 0, pluginEntry);
+      }
+
+      if (typeof result.score === "number") {
+        entry.hasScore = true;
+        entry.scoreTotal += result.score;
+      }
+
+      entry.dirty = true;
     }
   }
 
-  const receivedAt = Date.now();
-  return Array.from(aggregated.values())
-    .map((values, index) => {
-      if (values.length <= 0) {
-        return undefined;
+  getResults(): SearchResult[] {
+    if (this.entries.size === 0) {
+      return [];
+    }
+
+    const receivedAt = Date.now();
+    return Array.from(this.entries.values()).map((entry, index) => {
+      if (entry.dirty || !entry.combined) {
+        entry.combined = this.buildCombinedResult(entry.pluginEntries);
+        entry.dirty = false;
       }
 
-      values.sort((a, b) => b.pluginId.localeCompare(a.pluginId));
-      const baseCombine = Object.assign({}, ...values);
-      const totalScore = values.reduce(
-        (sum, curr) => sum + (typeof curr.score === "number" ? curr.score : 0),
-        0,
-      );
-      const combined = {
-        ...baseCombine,
-        ...(values.some((v) => typeof v.score === "number") ? { score: totalScore } : {}),
+      const combinedScore = entry.hasScore ? entry.scoreTotal : undefined;
+      const pluginIds = entry.pluginEntries.map((value) => value.pluginId);
+      const pluginDisplayNames = entry.pluginEntries.map((value) => value.pluginDisplayName);
+
+      const result: SearchResult = {
+        ...entry.combined,
+        ...(typeof combinedScore === "number" ? { score: combinedScore } : {}),
+        id: createResultId(index),
+        pluginIds,
+        pluginDisplayNames,
+        receivedAt,
       };
 
-      return {
-        ...combined,
-        id: createResultId(index),
-        pluginIds: values.map((value) => value.pluginId),
-        pluginDisplayNames: values.map((value) => value.pluginDisplayName),
-        receivedAt,
-      } as SearchResult;
-    })
-    .filter((value): value is SearchResult => Boolean(value));
-};
+      return result;
+    });
+  }
+
+  private buildCombinedResult(entries: AggregatedPluginEntry[]): PluginSearchResult {
+    if (entries.length === 0) {
+      return {} as PluginSearchResult;
+    }
+
+    const [first, ...rest] = entries;
+    const combined: PluginSearchResult = { ...first.result };
+
+    for (const { result } of rest) {
+      Object.assign(combined, result);
+    }
+
+    return combined;
+  }
+}
 
 export class Backend {
   private readonly pluginManager: PluginManager;
@@ -177,7 +234,7 @@ export class Backend {
 
     const abortController = new AbortController();
     const { signal: controllerSignal } = abortController;
-    const groups: PluginSearchResultGroup[] = [];
+    const aggregator = new ResultAggregator();
     const errors: PluginSearchError[] = [];
 
     const handleExternalAbort = () => {
@@ -211,11 +268,7 @@ export class Backend {
         const plugin = enabledPlugins[settled.index]!;
 
         if (settled.status === "fulfilled") {
-          groups.push({
-            pluginId: plugin.id,
-            pluginDisplayName: plugin.displayName,
-            results: settled.results ?? [],
-          });
+          aggregator.addResults(plugin.id, plugin.displayName, settled.results);
         } else {
           const error =
             settled.error instanceof Error ? settled.error : new Error(String(settled.error));
@@ -226,7 +279,7 @@ export class Backend {
           });
         }
 
-        const aggregated = aggregatePluginResults(groups);
+        const aggregated = aggregator.getResults();
         const sorted = sortResults(aggregated, sortOrder);
         yield {
           results: sorted,
