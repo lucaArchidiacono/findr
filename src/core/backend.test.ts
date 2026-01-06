@@ -1,35 +1,54 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, expect, it, vi } from "bun:test";
+import { describe, expect, it, vi, beforeEach, afterEach } from "bun:test";
 import { Backend } from "./backend";
 import { KeyValueStorage } from "./keyValueStorage";
-import type { PluginSearchResult, SearchPlugin } from "./plugins";
+import { PluginLoader } from "./plugin-loader";
+import type { SearchResult } from "../plugin";
 
+/**
+ * Helper to create and register a test plugin
+ */
 const createTestPlugin = (
   id: string,
-  implementation: (query: string, signal: AbortSignal) => Promise<PluginSearchResult[]>,
-  options: { displayName?: string } = {},
-): SearchPlugin => ({
-  id,
-  displayName: options.displayName ?? id,
-  description: `${id} plugin`,
-  async search({ query, signal }) {
-    return implementation(query, signal);
-  },
+  implementation: (query: string, signal: AbortSignal) => Promise<SearchResult[]>,
+  options: { displayName?: string; isEnabledByDefault?: boolean } = {},
+) => {
+  PluginLoader.registerBuiltin(
+    {
+      id,
+      displayName: options.displayName ?? id,
+      description: `${id} plugin`,
+      isEnabledByDefault: options.isEnabledByDefault ?? true,
+    },
+    async ({ query, signal }) => implementation(query, signal),
+  );
+};
+
+let tempDir: string;
+let cleanup: () => Promise<void>;
+
+beforeEach(async () => {
+  // Clear plugin loader state before each test
+  PluginLoader.clear();
+  
+  // Create temp directory for cache
+  tempDir = await mkdtemp(join(tmpdir(), "findr-backend-"));
 });
 
-const setupBackend = async (plugins: SearchPlugin[]) => {
-  const dir = await mkdtemp(join(tmpdir(), "findr-backend-"));
-  const cachePath = join(dir, "cache.json");
-  const cache = new KeyValueStorage<string, PluginSearchResult[]>({ path: cachePath, ttlMs: 0 });
-  const backend = new Backend(plugins, { cache });
-  return {
-    backend,
-    async cleanup() {
-      await rm(dir, { recursive: true, force: true });
-    },
-  };
+afterEach(async () => {
+  // Cleanup temp directory
+  await rm(tempDir, { recursive: true, force: true });
+  PluginLoader.clear();
+});
+
+const setupBackend = async () => {
+  const cachePath = join(tempDir, "cache.json");
+  const cache = new KeyValueStorage<string, SearchResult[]>({ path: cachePath, ttlMs: 0 });
+  const backend = new Backend({ cache });
+  await backend.init();
+  return backend;
 };
 
 const collectUrls = (response: { results: { url: string }[] }) =>
@@ -37,7 +56,7 @@ const collectUrls = (response: { results: { url: string }[] }) =>
 
 describe("Backend search", () => {
   it("aggregates plugin results and supports sort orders", async () => {
-    const alphaResults: PluginSearchResult[] = [
+    const alphaResults: SearchResult[] = [
       {
         title: "Shared Alpha",
         description: "Alpha shared",
@@ -54,7 +73,7 @@ describe("Backend search", () => {
       },
     ];
 
-    const betaResults: PluginSearchResult[] = [
+    const betaResults: SearchResult[] = [
       {
         title: "Shared Beta",
         description: "Beta shared",
@@ -74,41 +93,39 @@ describe("Backend search", () => {
     const alphaSearch = vi.fn(async () => alphaResults);
     const betaSearch = vi.fn(async () => betaResults);
 
-    const alpha = createTestPlugin("alpha", () => alphaSearch());
-    const beta = createTestPlugin("beta", () => betaSearch());
+    createTestPlugin("alpha", () => alphaSearch());
+    createTestPlugin("beta", () => betaSearch());
 
-    const { backend, cleanup } = await setupBackend([alpha, beta]);
+    const backend = await setupBackend();
 
-    try {
-      const relevanceResponse = await backend.search("query");
+    const relevanceResponse = await backend.search("query");
 
-      expect(alphaSearch).toHaveBeenCalledTimes(1);
-      expect(betaSearch).toHaveBeenCalledTimes(1);
+    expect(alphaSearch).toHaveBeenCalledTimes(1);
+    expect(betaSearch).toHaveBeenCalledTimes(1);
 
-      expect(collectUrls(relevanceResponse)).toEqual([
-        "https://example.com/shared",
-        "https://example.com/beta",
-        "https://example.com/alpha",
-      ]);
+    expect(collectUrls(relevanceResponse)).toEqual([
+      "https://example.com/shared",
+      "https://example.com/beta",
+      "https://example.com/alpha",
+    ]);
 
-      const shared = relevanceResponse.results.find(
-        (result) => result.url === "https://example.com/shared",
-      );
-      expect(shared?.pluginIds.sort()).toEqual(["alpha", "beta"]);
-      expect(shared?.score).toBe(8);
+    const shared = relevanceResponse.results.find(
+      (result) => result.url === "https://example.com/shared",
+    );
+    expect(shared?.pluginIds.sort()).toEqual(["alpha", "beta"]);
+    expect(shared?.score).toBe(8);
 
-      const recencyResponse = await backend.search("query", { sortOrder: "recency" });
-      expect(alphaSearch).toHaveBeenCalledTimes(1);
-      expect(betaSearch).toHaveBeenCalledTimes(1);
+    // Note: second search uses cache, so mock won't be called again
+    const recencyResponse = await backend.search("query", { sortOrder: "recency" });
+    // Cache is per-plugin, per-query, so still only 1 call each
+    expect(alphaSearch).toHaveBeenCalledTimes(1);
+    expect(betaSearch).toHaveBeenCalledTimes(1);
 
-      expect(collectUrls(recencyResponse)).toEqual([
-        "https://example.com/beta",
-        "https://example.com/alpha",
-        "https://example.com/shared",
-      ]);
-    } finally {
-      await cleanup();
-    }
+    expect(collectUrls(recencyResponse)).toEqual([
+      "https://example.com/beta",
+      "https://example.com/alpha",
+      "https://example.com/shared",
+    ]);
   });
 
   it("uses cached plugin results for repeated searches", async () => {
@@ -121,19 +138,15 @@ describe("Backend search", () => {
       },
     ]);
 
-    const plugin = createTestPlugin("cached", () => searchMock());
-    const { backend, cleanup } = await setupBackend([plugin]);
+    createTestPlugin("cached", () => searchMock());
+    const backend = await setupBackend();
 
-    try {
-      const first = await backend.search("repeat");
-      const second = await backend.search("repeat");
+    const first = await backend.search("repeat");
+    const second = await backend.search("repeat");
 
-      expect(first.results).toHaveLength(1);
-      expect(second.results).toHaveLength(1);
-      expect(searchMock).toHaveBeenCalledTimes(1);
-    } finally {
-      await cleanup();
-    }
+    expect(first.results).toHaveLength(1);
+    expect(second.results).toHaveLength(1);
+    expect(searchMock).toHaveBeenCalledTimes(1);
   });
 
   it("streams incremental results using the requested sort order", async () => {
@@ -149,7 +162,7 @@ describe("Backend search", () => {
 
     const slowSearch = vi.fn(
       () =>
-        new Promise<PluginSearchResult[]>((resolve) => {
+        new Promise<SearchResult[]>((resolve) => {
           setTimeout(() => {
             resolve([
               {
@@ -164,28 +177,23 @@ describe("Backend search", () => {
         }),
     );
 
-    const fast = createTestPlugin("alpha", () => fastSearch());
-    const slow = createTestPlugin("beta", () => slowSearch());
+    createTestPlugin("alpha", () => fastSearch());
+    createTestPlugin("beta", () => slowSearch());
 
-    const { backend, cleanup } = await setupBackend([fast, slow]);
+    const backend = await setupBackend();
+    const iterator = backend.searchStream("query", { sortOrder: "source" });
 
-    try {
-      const iterator = backend.searchStream("query", { sortOrder: "source" });
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value?.results).toHaveLength(1);
+    expect(first.value?.results[0]?.pluginIds).toEqual(["alpha"]);
 
-      const first = await iterator.next();
-      expect(first.done).toBe(false);
-      expect(first.value?.results).toHaveLength(1);
-      expect(first.value?.results[0]?.pluginIds).toEqual(["alpha"]);
+    const second = await iterator.next();
+    expect(second.done).toBe(false);
+    expect(second.value?.results).toHaveLength(1);
+    expect(second.value?.results[0]?.pluginIds.sort()).toEqual(["alpha", "beta"]);
 
-      const second = await iterator.next();
-      expect(second.done).toBe(false);
-      expect(second.value?.results).toHaveLength(1);
-      expect(second.value?.results[0]?.pluginIds.sort()).toEqual(["alpha", "beta"]);
-
-      const final = await iterator.next();
-      expect(final.done).toBe(true);
-    } finally {
-      await cleanup();
-    }
+    const final = await iterator.next();
+    expect(final.done).toBe(true);
   });
 });

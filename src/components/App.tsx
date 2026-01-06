@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useCallback } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
@@ -10,7 +10,7 @@ import PluginPanel from "./PluginPanel";
 import StatusBar from "./StatusBar";
 import FeedbackBar from "./FeedbackBar";
 import { useBackend } from "../core/backend";
-import plugins from "../plugins";
+import { PluginLoader } from "../core/plugin-loader";
 
 type Pane = AppState["activePane"];
 
@@ -164,10 +164,11 @@ export const App = () => {
 
   const resolvePlugin = (idOrName: string) => {
     const normalized = normalizeId(idOrName);
-    return plugins.find(
+    const allPlugins = PluginLoader.list();
+    return allPlugins.find(
       (registration) =>
-        registration.id.toLowerCase() === normalized ||
-        registration.displayName.toLowerCase() === normalized,
+        registration.meta.id.toLowerCase() === normalized ||
+        registration.meta.displayName.toLowerCase() === normalized,
     );
   };
 
@@ -204,11 +205,11 @@ export const App = () => {
           });
           return "keep";
         }
-        backend.setPluginEnabled(registration.id, true);
+        await backend.setPluginEnabled(registration.meta.id, true);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Enabled ${registration.displayName}.`, "info"),
+          feedback: toFeedback(`Enabled ${registration.meta.displayName}.`, "info"),
         });
         return "clear";
       }
@@ -221,11 +222,11 @@ export const App = () => {
           });
           return "keep";
         }
-        backend.setPluginEnabled(registration.id, false);
+        await backend.setPluginEnabled(registration.meta.id, false);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Disabled ${registration.displayName}.`, "info"),
+          feedback: toFeedback(`Disabled ${registration.meta.displayName}.`, "info"),
         });
         return "clear";
       }
@@ -238,12 +239,12 @@ export const App = () => {
           });
           return "keep";
         }
-        const enabled = backend.togglePlugin(registration.id);
+        const enabled = await backend.togglePlugin(registration.meta.id);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
           feedback: toFeedback(
-            `${enabled ? "Enabled" : "Disabled"} ${registration.displayName}.`,
+            `${enabled ? "Enabled" : "Disabled"} ${registration.meta.displayName}.`,
             "info",
           ),
         });
@@ -264,9 +265,10 @@ export const App = () => {
         return "clear";
       case "togglePluginPanel": {
         const willShow = !state.showPluginPanel;
+        const allPlugins = PluginLoader.list();
         dispatch({ type: "plugins/setPanelVisible", visible: willShow });
         if (willShow) {
-          dispatch({ type: "plugins/setPanelIndex", index: 0, total: plugins.length });
+          dispatch({ type: "plugins/setPanelIndex", index: 0, total: allPlugins.length });
           setPane("plugins");
         } else if (state.activePane === "plugins") {
           setPane(state.results.length > 0 ? "results" : "search");
@@ -309,23 +311,25 @@ export const App = () => {
   };
 
   const changePluginCursor = (delta: number) => {
+    const allPlugins = PluginLoader.list();
     dispatch({
       type: "plugins/setPanelIndex",
       index: state.pluginPanelIndex + delta,
-      total: plugins.length,
+      total: allPlugins.length,
     });
   };
 
-  const togglePluginAtCursor = () => {
-    const target = plugins[state.pluginPanelIndex];
+  const togglePluginAtCursor = async () => {
+    const allPlugins = PluginLoader.list();
+    const target = allPlugins[state.pluginPanelIndex];
     if (!target) {
       return;
     }
-    const enabled = backend.togglePlugin(target.id);
+    const enabled = await backend.togglePlugin(target.meta.id);
     syncEnabledPlugins();
     dispatch({
       type: "feedback/set",
-      feedback: toFeedback(`${enabled ? "Enabled" : "Disabled"} ${target.displayName}.`, "info"),
+      feedback: toFeedback(`${enabled ? "Enabled" : "Disabled"} ${target.meta.displayName}.`, "info"),
     });
   };
 
@@ -393,7 +397,7 @@ export const App = () => {
       } else if (key.name === "up" || key.name === "k") {
         changePluginCursor(-1);
       } else if (key.name === "space" || key.name === "enter") {
-        togglePluginAtCursor();
+        togglePluginAtCursor().catch(() => {});
       }
     };
 
@@ -405,12 +409,21 @@ export const App = () => {
     (error) => `[${error.pluginDisplayName}] ${error.error.message}`,
   );
 
+  // Get plugins list for rendering
+  const allPlugins = PluginLoader.list();
+  const pluginsForPanel = allPlugins.map((p) => ({
+    id: p.meta.id,
+    displayName: p.meta.displayName,
+    description: p.meta.description,
+    isEnabledByDefault: p.meta.isEnabledByDefault,
+  }));
+
   return (
     <box flexDirection="column" flexGrow={1} padding={1}>
       <StatusBar
         sortOrder={state.sortOrder}
         enabledPlugins={state.enabledPluginIds.length}
-        totalPlugins={plugins.length}
+        totalPlugins={allPlugins.length}
         activePane={state.activePane}
       />
 
@@ -422,7 +435,7 @@ export const App = () => {
           focused={state.activePane === "results"}
         />
         <PluginPanel
-          plugins={plugins}
+          plugins={pluginsForPanel}
           enabledPluginIds={state.enabledPluginIds}
           selectedIndex={state.pluginPanelIndex}
           visible={state.showPluginPanel}

@@ -1,0 +1,13 @@
+{
+  "name": "@findr/plugin",
+  "version": "1.0.0",
+  "description": "Plugin SDK for Findr search application",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  }
+}
