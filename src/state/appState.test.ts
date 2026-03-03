@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { SearchResult } from "../core/backend";
+import type { SearchResult } from "../core/findr";
 import { createInitialState, appReducer } from "./appState";
 
 const createResult = (id: string, score: number, pluginId = "mock"): SearchResult => ({
