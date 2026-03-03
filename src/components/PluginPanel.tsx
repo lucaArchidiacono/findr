@@ -1,9 +1,17 @@
 import { BoxRenderable, ScrollBoxRenderable, TextAttributes } from "@opentui/core";
 import { useEffect, useRef } from "react";
-import type { SearchPlugin } from "../core/plugins";
+
+/**
+ * Plugin display info for the panel
+ */
+interface PluginInfo {
+  id: string;
+  displayName: string;
+  description?: string;
+}
 
 interface PluginPanelProps {
-  plugins: SearchPlugin[];
+  plugins: PluginInfo[];
   enabledPluginIds: string[];
   selectedIndex: number;
   visible: boolean;

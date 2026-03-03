@@ -3,14 +3,12 @@ import { useKeyboard, useRenderer } from "@opentui/react";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
-import type { SearchResponse, SortOrder } from "../core/backend";
+import { Findr, type SearchResponse, type SortOrder } from "../core/findr";
 import SearchBar from "./SearchBar";
 import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
 import StatusBar from "./StatusBar";
 import FeedbackBar from "./FeedbackBar";
-import { useBackend } from "../core/backend";
-import plugins from "../plugins";
 
 type Pane = AppState["activePane"];
 
@@ -55,7 +53,6 @@ export const App = () => {
   const [state, dispatch] = useReducer(appReducer, undefined, () => createInitialState());
   const abortControllerRef = useRef<AbortController | null>(null);
   const renderer = useRenderer();
-  const backend = useBackend();
 
   useEffect(() => {
     if (state.showConsole) {
@@ -66,11 +63,11 @@ export const App = () => {
   }, [renderer, state.showConsole]);
 
   useEffect(() => {
-    const registeredIds = backend.getEnabledPluginIds();
+    const registeredIds = Findr.enabledIds();
     if (registeredIds.join(",") !== state.enabledPluginIds.join(",")) {
       dispatch({ type: "plugins/setEnabled", pluginIds: registeredIds });
     }
-  }, [state.enabledPluginIds, backend]);
+  }, [state.enabledPluginIds]);
 
   const setPane = (pane: Pane) => {
     dispatch({ type: "pane/set", pane });
@@ -127,7 +124,7 @@ export const App = () => {
     let latestResponse: SearchResponse | null = null;
 
     try {
-      for await (const snapshot of backend.searchStream(query, {
+      for await (const snapshot of Findr.search(query, {
         signal: controller.signal,
         sortOrder,
       })) {
@@ -164,17 +161,15 @@ export const App = () => {
 
   const resolvePlugin = (idOrName: string) => {
     const normalized = normalizeId(idOrName);
-    return plugins.find(
-      (registration) =>
-        registration.id.toLowerCase() === normalized ||
-        registration.displayName.toLowerCase() === normalized,
+    return Findr.list().find(
+      (p) => p.name.toLowerCase() === normalized || p.displayName.toLowerCase() === normalized,
     );
   };
 
   const syncEnabledPlugins = () => {
     dispatch({
       type: "plugins/setEnabled",
-      pluginIds: backend.getEnabledPluginIds(),
+      pluginIds: Findr.enabledIds(),
     });
   };
 
@@ -196,54 +191,54 @@ export const App = () => {
     const { command } = parsed;
     switch (command.kind) {
       case "enablePlugin": {
-        const registration = resolvePlugin(command.pluginId);
-        if (!registration) {
+        const plugin = resolvePlugin(command.pluginId);
+        if (!plugin) {
           dispatch({
             type: "feedback/set",
             feedback: toFeedback(`Plugin "${command.pluginId}" not found.`, "error"),
           });
           return "keep";
         }
-        backend.setPluginEnabled(registration.id, true);
+        Findr.enable(plugin.name);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Enabled ${registration.displayName}.`, "info"),
+          feedback: toFeedback(`Enabled ${plugin.displayName}.`, "info"),
         });
         return "clear";
       }
       case "disablePlugin": {
-        const registration = resolvePlugin(command.pluginId);
-        if (!registration) {
+        const plugin = resolvePlugin(command.pluginId);
+        if (!plugin) {
           dispatch({
             type: "feedback/set",
             feedback: toFeedback(`Plugin "${command.pluginId}" not found.`, "error"),
           });
           return "keep";
         }
-        backend.setPluginEnabled(registration.id, false);
+        Findr.disable(plugin.name);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
-          feedback: toFeedback(`Disabled ${registration.displayName}.`, "info"),
+          feedback: toFeedback(`Disabled ${plugin.displayName}.`, "info"),
         });
         return "clear";
       }
       case "togglePlugin": {
-        const registration = resolvePlugin(command.pluginId);
-        if (!registration) {
+        const plugin = resolvePlugin(command.pluginId);
+        if (!plugin) {
           dispatch({
             type: "feedback/set",
             feedback: toFeedback(`Plugin "${command.pluginId}" not found.`, "error"),
           });
           return "keep";
         }
-        const enabled = backend.togglePlugin(registration.id);
+        const enabled = Findr.toggle(plugin.name);
         syncEnabledPlugins();
         dispatch({
           type: "feedback/set",
           feedback: toFeedback(
-            `${enabled ? "Enabled" : "Disabled"} ${registration.displayName}.`,
+            `${enabled ? "Enabled" : "Disabled"} ${plugin.displayName}.`,
             "info",
           ),
         });
@@ -264,9 +259,10 @@ export const App = () => {
         return "clear";
       case "togglePluginPanel": {
         const willShow = !state.showPluginPanel;
+        const allPlugins = Findr.list();
         dispatch({ type: "plugins/setPanelVisible", visible: willShow });
         if (willShow) {
-          dispatch({ type: "plugins/setPanelIndex", index: 0, total: plugins.length });
+          dispatch({ type: "plugins/setPanelIndex", index: 0, total: allPlugins.length });
           setPane("plugins");
         } else if (state.activePane === "plugins") {
           setPane(state.results.length > 0 ? "results" : "search");
@@ -309,19 +305,21 @@ export const App = () => {
   };
 
   const changePluginCursor = (delta: number) => {
+    const allPlugins = Findr.list();
     dispatch({
       type: "plugins/setPanelIndex",
       index: state.pluginPanelIndex + delta,
-      total: plugins.length,
+      total: allPlugins.length,
     });
   };
 
   const togglePluginAtCursor = () => {
-    const target = plugins[state.pluginPanelIndex];
+    const allPlugins = Findr.list();
+    const target = allPlugins[state.pluginPanelIndex];
     if (!target) {
       return;
     }
-    const enabled = backend.togglePlugin(target.id);
+    const enabled = Findr.toggle(target.name);
     syncEnabledPlugins();
     dispatch({
       type: "feedback/set",
@@ -405,12 +403,19 @@ export const App = () => {
     (error) => `[${error.pluginDisplayName}] ${error.error.message}`,
   );
 
+  const allPlugins = Findr.list();
+  const pluginsForPanel = allPlugins.map((p) => ({
+    id: p.name,
+    displayName: p.displayName,
+    description: p.description,
+  }));
+
   return (
     <box flexDirection="column" flexGrow={1} padding={1}>
       <StatusBar
         sortOrder={state.sortOrder}
         enabledPlugins={state.enabledPluginIds.length}
-        totalPlugins={plugins.length}
+        totalPlugins={allPlugins.length}
         activePane={state.activePane}
       />
 
@@ -422,7 +427,7 @@ export const App = () => {
           focused={state.activePane === "results"}
         />
         <PluginPanel
-          plugins={plugins}
+          plugins={pluginsForPanel}
           enabledPluginIds={state.enabledPluginIds}
           selectedIndex={state.pluginPanelIndex}
           visible={state.showPluginPanel}

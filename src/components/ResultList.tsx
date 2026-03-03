@@ -1,4 +1,4 @@
-import type { SearchResult } from "../core/backend";
+import type { SearchResult } from "../core/findr";
 import { truncate, truncateUrl } from "../utils/formatting";
 import { BoxRenderable, ScrollBoxRenderable, TextAttributes } from "@opentui/core";
 import { useEffect, useRef } from "react";
