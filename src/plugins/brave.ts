@@ -1,83 +1,72 @@
-import type { SearchPlugin, PluginSearchQuery, PluginSearchResult } from "../core/plugins";
+import type { PluginDef } from "../core/findr";
 
-const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
-const DEFAULT_RESULT_LIMIT = 10;
-
-interface BraveWebResult {
+interface BraveResult {
   title?: string;
   url?: string;
   description?: string;
   rank?: number;
   page_age?: string;
-  profile?: Record<string, unknown> | null;
-  meta_url?: {
-    last_crawled?: string;
-    published?: string;
-  } | null;
-  [key: string]: unknown;
+  meta_url?: { last_crawled?: string; published?: string } | null;
 }
 
-interface BraveSearchResponse {
-  web?: {
-    results?: BraveWebResult[];
-  };
-  [key: string]: unknown;
+export interface BraveSearchResponse {
+  web?: { results?: BraveResult[] };
 }
 
-const parseTimestamp = (result: BraveWebResult): number | undefined => {
-  const candidates = [result.page_age, result.meta_url?.published, result.meta_url?.last_crawled];
+export function parseBraveResults(data: BraveSearchResponse): {
+  title: string;
+  description: string;
+  url: string;
+  score?: number;
+  timestamp?: number;
+}[] {
+  const results = data.web?.results ?? [];
 
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
+  return results
+    .filter((r): r is BraveResult & { title: string; url: string } => Boolean(r.title && r.url))
+    .map((r, idx) => {
+      const timestamps = [r.page_age, r.meta_url?.published, r.meta_url?.last_crawled];
+      let timestamp: number | undefined;
+      for (const ts of timestamps) {
+        if (ts) {
+          const parsed = Date.parse(ts);
+          if (!Number.isNaN(parsed)) {
+            timestamp = parsed;
+            break;
+          }
+        }
+      }
+
+      return {
+        id: `brave-${idx}`,
+        title: r.title,
+        description: r.description ?? "",
+        url: r.url,
+        score: typeof r.rank === "number" ? r.rank : undefined,
+        timestamp,
+      };
+    });
+}
+
+const bravePlugin: PluginDef = {
+  name: "brave",
+  displayName: "Brave",
+  description: "Queries the Brave Search API (requires BRAVE_API_KEY).",
+  enabled: false,
+  search: async (query, signal) => {
+    if (signal.aborted) return [];
+
+    const apiKey = Bun.env["BRAVE_API_KEY"];
+    if (!apiKey) {
+      throw new Error("Missing Brave API key. Set BRAVE_API_KEY=... to enable the plugin.");
     }
-    const timestamp = Date.parse(candidate);
-    if (!Number.isNaN(timestamp)) {
-      return timestamp;
-    }
-  }
 
-  return undefined;
-};
+    const url = new URL("https://api.search.brave.com/res/v1/web/search");
+    url.searchParams.set("q", query);
+    url.searchParams.set("source", "web");
+    url.searchParams.set("summary", "true");
+    url.searchParams.set("count", "10");
 
-const normalizeResult = (result: BraveWebResult): PluginSearchResult | undefined => {
-  if (!result.title || !result.url) {
-    return undefined;
-  }
-
-  return {
-    title: result.title,
-    description: result.description ?? "",
-    url: result.url,
-    score: typeof result.rank === "number" ? result.rank : undefined,
-    timestamp: parseTimestamp(result),
-    metadata: result.profile ?? undefined,
-  };
-};
-
-const braveSearch = async ({
-  query,
-  limit,
-  signal,
-}: PluginSearchQuery): Promise<PluginSearchResult[]> => {
-  if (signal.aborted) {
-    return [];
-  }
-
-  const apiKey = Bun.env["BRAVE_API_KEY"];
-  if (!apiKey) {
-    throw new Error(`Missing Brave API key. Set BRAVE_API_KEY=... to enable the plugin.`);
-  }
-
-  const url = new URL(BRAVE_ENDPOINT);
-  url.searchParams.set("q", query);
-  url.searchParams.set("source", "web");
-  url.searchParams.set("summary", "true");
-
-  const desiredLimit = limit ?? DEFAULT_RESULT_LIMIT;
-  url.searchParams.set("count", Math.max(1, Math.min(desiredLimit, 20)).toString());
-
-  try {
     const response = await fetch(url, {
       headers: {
         accept: "application/json",
@@ -94,27 +83,8 @@ const braveSearch = async ({
     }
 
     const data = (await response.json()) as BraveSearchResponse;
-    const results = data.web?.results ?? [];
-
-    return results
-      .map(normalizeResult)
-      .filter((item): item is PluginSearchResult => Boolean(item))
-      .slice(0, desiredLimit);
-  } catch (error) {
-    if (signal.aborted) {
-      return [];
-    }
-
-    throw error instanceof Error ? error : new Error(String(error));
-  }
-};
-
-const bravePlugin: SearchPlugin = {
-  id: "brave",
-  displayName: "Brave",
-  description: "Queries the Brave Search API (requires BRAVE_API_KEY).",
-  isEnabledByDefault: false,
-  search: braveSearch,
+    return parseBraveResults(data).slice(0, 10);
+  },
 };
 
 export default bravePlugin;

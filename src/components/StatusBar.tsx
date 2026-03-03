@@ -1,5 +1,5 @@
 import { TextAttributes } from "@opentui/core";
-import type { SortOrder } from "../core/backend";
+import type { SortOrder } from "../core/findr";
 import type { AppState } from "../state/appState";
 
 interface StatusBarProps {

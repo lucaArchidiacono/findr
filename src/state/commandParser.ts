@@ -1,4 +1,4 @@
-import type { SortOrder } from "../core/backend";
+import type { SortOrder } from "../core/findr";
 
 export type Command =
   | { kind: "enablePlugin"; pluginId: string }

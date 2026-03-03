@@ -1,5 +1,4 @@
-import type { SearchResult, SortOrder } from "../core/backend";
-import type { PluginSearchError } from "../core/plugins";
+import type { SearchResult, SortOrder, PluginSearchError } from "../core/findr";
 
 export interface CommandFeedback {
   message: string;
