@@ -4,9 +4,10 @@ import { ConsolePosition } from "@opentui/core";
 import { registerBuiltinPlugins } from "./plugins/builtin";
 import { Findr } from "./core/findr";
 
-// Register builtin plugins, then load user plugins from ~/.config/findr
+// Register builtin plugins, load user plugins, then restore saved preferences
 registerBuiltinPlugins();
 await Findr.loadUserPlugins();
+await Findr.loadPreferences();
 
 render(<App />, {
   ...(Bun.env.DEBUG === "true"

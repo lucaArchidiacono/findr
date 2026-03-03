@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach } from "bun:test";
 import { Findr, type PluginResult, type SearchResponse, type PluginSearchError } from "./findr";
 
@@ -434,3 +437,88 @@ describe("displayName in results", () => {
   });
 });
 
+// ---- Preferences persistence ----
+
+describe("preferences", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "findr-prefs-"));
+    Findr.setPrefsPath(join(tempDir, "preferences.json"));
+  });
+
+  // cleanup handled by OS temp dir purging; not critical for test correctness
+
+  it("saves and loads enabled plugin state", async () => {
+    fakePlugin("a", [], { enabled: true });
+    fakePlugin("b", [], { enabled: false });
+    fakePlugin("c", [], { enabled: true });
+
+    Findr.disable("a");
+    Findr.enable("b");
+    // Wait for fire-and-forget saves to flush
+    await delay(50);
+
+    // Verify file was written
+    const file = Bun.file(join(tempDir, "preferences.json"));
+    expect(await file.exists()).toBe(true);
+    const data = await file.json();
+    expect(data.enabledPlugins.sort()).toEqual(["b", "c"]);
+
+    // Reset to defaults and reload
+    Findr.clear();
+    fakePlugin("a", [], { enabled: true });
+    fakePlugin("b", [], { enabled: false });
+    fakePlugin("c", [], { enabled: true });
+
+    await Findr.loadPreferences();
+
+    expect(Findr.get("a")!.enabled).toBe(false);
+    expect(Findr.get("b")!.enabled).toBe(true);
+    expect(Findr.get("c")!.enabled).toBe(true);
+  });
+
+  it("toggle auto-saves preferences", async () => {
+    fakePlugin("x", []);
+    Findr.toggle("x");
+    await delay(50);
+
+    const data = await Bun.file(join(tempDir, "preferences.json")).json();
+    expect(data.enabledPlugins).toEqual([]);
+  });
+
+  it("loadPreferences is a no-op when file does not exist", async () => {
+    fakePlugin("a", [], { enabled: true });
+    fakePlugin("b", [], { enabled: false });
+
+    Findr.setPrefsPath(join(tempDir, "nonexistent.json"));
+    await Findr.loadPreferences();
+
+    // Defaults preserved
+    expect(Findr.get("a")!.enabled).toBe(true);
+    expect(Findr.get("b")!.enabled).toBe(false);
+  });
+
+  it("loadPreferences ignores unknown plugin names", async () => {
+    fakePlugin("known", [], { enabled: false });
+
+    // Write prefs referencing a plugin that doesn't exist
+    await Bun.write(
+      join(tempDir, "preferences.json"),
+      JSON.stringify({ enabledPlugins: ["known", "ghost"] }),
+    );
+
+    await Findr.loadPreferences();
+    expect(Findr.get("known")!.enabled).toBe(true);
+    expect(Findr.get("ghost")).toBeUndefined();
+  });
+
+  it("loadPreferences handles malformed JSON gracefully", async () => {
+    fakePlugin("a", [], { enabled: true });
+
+    await Bun.write(join(tempDir, "preferences.json"), "not json{{{");
+    await Findr.loadPreferences(); // should not throw
+
+    expect(Findr.get("a")!.enabled).toBe(true);
+  });
+});

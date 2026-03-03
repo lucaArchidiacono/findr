@@ -164,6 +164,7 @@ function sortResults(results: SearchResult[], order: SortOrder): SearchResult[] 
 export namespace Findr {
   const registry = new Map<string, InternalPlugin>();
   const subs = new Map<string, Set<(data: unknown) => void>>();
+  let prefsFile = join(homedir(), ".config", "findr", "preferences.json");
 
   // -- Pub/Sub --
 
@@ -231,6 +232,34 @@ export namespace Findr {
     }
   }
 
+  // -- Preferences --
+
+  export function setPrefsPath(path: string): void {
+    prefsFile = path;
+  }
+
+  export async function savePreferences(): Promise<void> {
+    const data = JSON.stringify({ enabledPlugins: enabledIds() }, null, 2);
+    await Bun.write(prefsFile, data, { createPath: true });
+  }
+
+  export async function loadPreferences(): Promise<void> {
+    try {
+      const file = Bun.file(prefsFile);
+      if (!(await file.exists())) return;
+      const raw = await file.json();
+      const saved = raw?.enabledPlugins;
+      if (!Array.isArray(saved)) return;
+
+      const desired = new Set(saved as string[]);
+      for (const plugin of registry.values()) {
+        plugin.enabled = desired.has(plugin.name);
+      }
+    } catch {
+      // Missing or malformed file — use defaults
+    }
+  }
+
   // -- Plugin management --
 
   export function list(): PluginInfo[] {
@@ -261,18 +290,21 @@ export namespace Findr {
     const p = registry.get(name);
     if (!p) throw new Error(`Unknown plugin: ${name}`);
     p.enabled = true;
+    savePreferences().catch(() => {});
   }
 
   export function disable(name: string): void {
     const p = registry.get(name);
     if (!p) throw new Error(`Unknown plugin: ${name}`);
     p.enabled = false;
+    savePreferences().catch(() => {});
   }
 
   export function toggle(name: string): boolean {
     const p = registry.get(name);
     if (!p) throw new Error(`Unknown plugin: ${name}`);
     p.enabled = !p.enabled;
+    savePreferences().catch(() => {});
     return p.enabled;
   }
 
