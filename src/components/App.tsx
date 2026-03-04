@@ -365,10 +365,27 @@ export const App = () => {
     }
 
     const handleResultsNavigation = () => {
-      if (key.name === "down" || key.name === "j") {
+      if (state.filterActive) {
+        if (key.name === "escape") {
+          dispatch({ type: "filter/deactivate" });
+        } else if (key.name === "down") {
+          changeSelection(1);
+        } else if (key.name === "up") {
+          changeSelection(-1);
+        } else if (key.name === "enter" || key.name === "return") {
+          dispatch({ type: "filter/deactivate" });
+        }
+        return;
+      }
+
+      if (key.sequence === "/") {
+        dispatch({ type: "filter/activate" });
+      } else if (key.name === "down" || key.name === "j") {
         changeSelection(1);
       } else if (key.name === "up" || key.name === "k") {
         changeSelection(-1);
+      } else if (key.name === "escape") {
+        dispatch({ type: "filter/deactivate" });
       } else if (key.name === "enter" || key.name === "return") {
         const selected = state.results[state.selectedIndex];
         if (selected) {
@@ -425,6 +442,9 @@ export const App = () => {
           selectedIndex={state.selectedIndex}
           isLoading={state.isLoading}
           focused={state.activePane === "results"}
+          filterActive={state.filterActive}
+          filterText={state.filterText}
+          onFilterChange={(text) => dispatch({ type: "filter/change", text })}
         />
         <PluginPanel
           plugins={pluginsForPanel}

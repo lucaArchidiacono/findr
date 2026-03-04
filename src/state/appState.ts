@@ -17,6 +17,8 @@ export interface AppState {
   showPluginPanel: boolean;
   showConsole: boolean;
   pluginPanelIndex: number;
+  filterActive: boolean;
+  filterText: string;
   feedback?: CommandFeedback;
   errorMessage?: string;
   activePane: "search" | "results" | "plugins";
@@ -38,7 +40,10 @@ export type AppAction =
   | { type: "plugins/setPanelIndex"; index: number; total: number }
   | { type: "feedback/set"; feedback?: CommandFeedback }
   | { type: "pane/set"; pane: AppState["activePane"] }
-  | { type: "console/toggle"; visible: boolean };
+  | { type: "console/toggle"; visible: boolean }
+  | { type: "filter/activate" }
+  | { type: "filter/change"; text: string }
+  | { type: "filter/deactivate" };
 
 export const createInitialState = (): AppState => ({
   inputValue: "",
@@ -52,6 +57,8 @@ export const createInitialState = (): AppState => ({
   showPluginPanel: false,
   showConsole: false,
   pluginPanelIndex: 0,
+  filterActive: false,
+  filterText: "",
   activePane: "search",
 });
 
@@ -85,6 +92,8 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         errorMessage: undefined,
         feedback: undefined,
         pluginErrors: [],
+        filterActive: false,
+        filterText: "",
       };
     case "search/progress": {
       const results = action.results;
@@ -125,6 +134,8 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         selectedIndex: 0,
         pluginErrors: [],
         errorMessage: undefined,
+        filterActive: false,
+        filterText: "",
       };
     case "results/selectNext":
       return {
@@ -175,6 +186,24 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         showConsole: action.visible,
+      };
+    case "filter/activate":
+      return {
+        ...state,
+        filterActive: true,
+        filterText: "",
+      };
+    case "filter/change":
+      return {
+        ...state,
+        filterText: action.text,
+        selectedIndex: 0,
+      };
+    case "filter/deactivate":
+      return {
+        ...state,
+        filterActive: false,
+        filterText: "",
       };
     default:
       return state;

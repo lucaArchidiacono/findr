@@ -1,28 +1,113 @@
 import type { SearchResult } from "../core/findr";
 import { truncate, truncateUrl } from "../utils/formatting";
 import { BoxRenderable, ScrollBoxRenderable, TextAttributes } from "@opentui/core";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 
 interface ResultListProps {
   results: SearchResult[];
   selectedIndex: number;
   isLoading: boolean;
   focused: boolean;
+  filterActive: boolean;
+  filterText: string;
+  onFilterChange(text: string): void;
 }
 
 const MAX_DESCRIPTION_LENGTH = 120;
 const MAX_URL_LENGTH = 60;
 
-export const ResultList = ({ results, selectedIndex, isLoading, focused }: ResultListProps) => {
+function highlightText(
+  text: string,
+  words: string[],
+): Array<{ text: string; highlight: boolean }> {
+  if (words.length === 0) return [{ text, highlight: false }];
+
+  const pattern = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const regex = new RegExp(`(${pattern})`, "gi");
+  const parts: Array<{ text: string; highlight: boolean }> = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index), highlight: false });
+    }
+    parts.push({ text: match[0], highlight: true });
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), highlight: false });
+  }
+
+  return parts.length > 0 ? parts : [{ text, highlight: false }];
+}
+
+function HighlightedText({
+  text,
+  words,
+  dim,
+}: {
+  text: string;
+  words: string[];
+  dim?: boolean;
+}) {
+  const parts = highlightText(text, words);
+  const baseAttr = dim ? TextAttributes.DIM : 0;
+
+  if (parts.length === 1 && !parts[0]!.highlight) {
+    return <text attributes={baseAttr}>{text}</text>;
+  }
+
+  return (
+    <text>
+      {parts.map((part, i) => (
+        <span
+          key={i}
+          attributes={part.highlight ? TextAttributes.BOLD | TextAttributes.UNDERLINE : baseAttr}
+          fg={part.highlight ? "#FFD700" : undefined}
+        >
+          {part.text}
+        </span>
+      ))}
+    </text>
+  );
+}
+
+export const ResultList = ({
+  results,
+  selectedIndex,
+  isLoading,
+  focused,
+  filterActive,
+  filterText,
+  onFilterChange,
+}: ResultListProps) => {
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
   const itemRefs = useRef<Map<string, BoxRenderable>>(new Map());
+
+  const filterWords = useMemo(() => {
+    if (!filterText.trim()) return [];
+    return filterText.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  }, [filterText]);
+
+  const filteredResults = useMemo(() => {
+    if (filterWords.length === 0) return results;
+    return results.filter((r) => {
+      const haystack =
+        `${r.title} ${r.description} ${r.url} ${r.pluginDisplayNames.join(" ")}`.toLowerCase();
+      return filterWords.every((word) => haystack.includes(word));
+    });
+  }, [results, filterWords]);
+
+  const displayResults = filterActive ? filteredResults : results;
 
   useEffect(() => {
     const scrollbox = scrollRef.current;
     if (!scrollbox) {
       return;
     }
-    const selected = results[selectedIndex];
+    const selected = displayResults[selectedIndex];
     if (!selected) {
       return;
     }
@@ -52,10 +137,14 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
       const maxScrollTop = Math.max(0, scrollbox.scrollHeight - viewportHeight);
       scrollbox.scrollTop = Math.min(Math.max(nextScrollTop, 0), maxScrollTop);
     }
-  }, [results, selectedIndex]);
+  }, [displayResults, selectedIndex]);
 
-  const showEmptyMessage = results.length === 0;
-  const emptyMessage = isLoading ? "Searching…" : "No results yet. Try a query or /help.";
+  const showEmptyMessage = displayResults.length === 0;
+  const emptyMessage = isLoading
+    ? "Searching…"
+    : filterActive && filterWords.length > 0
+      ? "No matching results."
+      : "No results yet. Try a query or /help.";
 
   return (
     <box
@@ -68,6 +157,26 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
       borderStyle="rounded"
       borderColor={focused ? "#FFFFFF" : "#555555"}
     >
+      {filterActive ? (
+        <box
+          flexDirection="row"
+          alignItems="center"
+          paddingLeft={1}
+          paddingRight={1}
+          height={1}
+        >
+          <text fg="#FFD700">/</text>
+          <input
+            value={filterText}
+            placeholder="filter results..."
+            focused={filterActive && focused}
+            onInput={(value) => onFilterChange(String(value ?? ""))}
+            flexGrow={1}
+            height={1}
+          />
+        </box>
+      ) : null}
+
       {showEmptyMessage ? (
         <box
           flexGrow={1}
@@ -92,7 +201,7 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
           paddingTop={1}
           paddingBottom={1}
         >
-          {results.map((result, index) => {
+          {displayResults.map((result, index) => {
             const isSelected = index === selectedIndex;
 
             return (
@@ -113,10 +222,22 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
                 paddingBottom={1}
                 backgroundColor={isSelected ? "#1d1f21" : "transparent"}
               >
-                <text attributes={TextAttributes.BOLD}>{result.title}</text>
-                <text attributes={TextAttributes.DIM}>
-                  {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
-                </text>
+                {filterWords.length > 0 ? (
+                  <HighlightedText text={result.title} words={filterWords} />
+                ) : (
+                  <text attributes={TextAttributes.BOLD}>{result.title}</text>
+                )}
+                {filterWords.length > 0 ? (
+                  <HighlightedText
+                    text={truncate(result.description, MAX_DESCRIPTION_LENGTH)}
+                    words={filterWords}
+                    dim
+                  />
+                ) : (
+                  <text attributes={TextAttributes.DIM}>
+                    {truncate(result.description, MAX_DESCRIPTION_LENGTH)}
+                  </text>
+                )}
                 <text attributes={TextAttributes.UNDERLINE}>
                   {truncateUrl(result.url, MAX_URL_LENGTH)}
                 </text>
