@@ -55,9 +55,10 @@ const mockPlugin: PluginDef = {
         timestamp: Date.now(),
       }));
     } else {
+      const words = normalized.split(/\s+/).filter(Boolean);
       results = MOCK_DATA.filter((item) => {
         const haystack = `${item.title} ${item.description}`.toLowerCase();
-        return haystack.includes(normalized);
+        return words.every((word) => haystack.includes(word));
       }).map((item, idx) => ({
         ...item,
         id: `mock-${idx}`,

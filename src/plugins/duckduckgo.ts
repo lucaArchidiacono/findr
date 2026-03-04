@@ -1,59 +1,45 @@
 import type { PluginDef, PluginResult } from "../core/findr";
 
-interface DDGTopic {
-  Text?: string;
-  FirstURL?: string;
+export interface DDGHTMLResult {
+  title: string;
+  url: string;
+  description: string;
 }
 
-interface DDGTopicGroup {
-  Name?: string;
-  Topics?: DDGTopic[];
-}
+export function parseDDGHTML(html: string): DDGHTMLResult[] {
+  const results: DDGHTMLResult[] = [];
 
-export type DDGRelatedTopic = DDGTopic | DDGTopicGroup;
+  // Each web result is inside a <a class="result__a" ...> for the title/URL
+  // and <a class="result__snippet" ...> for the description.
+  // We match each result block between "result__body" markers.
+  const linkPattern =
+    /<a[^>]+class="result__a"[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g;
+  const snippetPattern = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
 
-export interface DDGResponse {
-  Abstract?: string;
-  AbstractURL?: string;
-  AbstractSource?: string;
-  RelatedTopics?: DDGRelatedTopic[];
-}
+  const links: { url: string; title: string }[] = [];
+  let match: RegExpExecArray | null;
 
-function flattenTopics(topics: DDGRelatedTopic[]): DDGTopic[] {
-  const flat: DDGTopic[] = [];
-  for (const entry of topics) {
-    if ("Topics" in entry && Array.isArray(entry.Topics)) {
-      flat.push(...entry.Topics);
-    } else {
-      flat.push(entry as DDGTopic);
+  while ((match = linkPattern.exec(html)) !== null) {
+    const url = decodeURIComponent(
+      (match[1] ?? "").replace(/^\/\/duckduckgo\.com\/l\/\?uddg=/, "").replace(/&rut=.*$/, ""),
+    );
+    const title = (match[2] ?? "").replace(/<[^>]*>/g, "").trim();
+    if (url && title) {
+      links.push({ url, title });
     }
   }
-  return flat;
-}
 
-export function parseDDGResults(data: DDGResponse): PluginResult[] {
-  const results: PluginResult[] = [];
+  const snippets: string[] = [];
+  while ((match = snippetPattern.exec(html)) !== null) {
+    snippets.push((match[1] ?? "").replace(/<[^>]*>/g, "").trim());
+  }
 
-  if (data.Abstract && data.AbstractURL) {
+  for (let i = 0; i < links.length && results.length < 10; i++) {
     results.push({
-      title: data.AbstractSource ?? "DuckDuckGo",
-      description: data.Abstract,
-      url: data.AbstractURL,
-      score: 1,
+      title: links[i]!.title,
+      url: links[i]!.url,
+      description: snippets[i] ?? "",
     });
-  }
-
-  const topics = flattenTopics(data.RelatedTopics ?? []);
-  for (const topic of topics) {
-    if (results.length >= 10) break;
-    if (topic.Text && topic.FirstURL) {
-      results.push({
-        title: topic.Text.slice(0, 80),
-        description: topic.Text,
-        url: topic.FirstURL,
-        score: 0.5,
-      });
-    }
   }
 
   return results;
@@ -62,27 +48,34 @@ export function parseDDGResults(data: DDGResponse): PluginResult[] {
 const duckduckgoPlugin: PluginDef = {
   name: "duckduckgo",
   displayName: "DuckDuckGo",
-  description: "Search DuckDuckGo instant answers (no API key required). Best for entities and topics.",
+  description: "Search DuckDuckGo web results (no API key required).",
   enabled: false,
   search: async (query, signal) => {
     if (signal.aborted) return [];
 
-    const url = new URL("https://api.duckduckgo.com/");
-    url.searchParams.set("q", query);
-    url.searchParams.set("format", "json");
-    url.searchParams.set("no_html", "1");
-
-    const response = await fetch(url, {
+    const response = await fetch("https://html.duckduckgo.com/html/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Findr/1.0",
+      },
+      body: new URLSearchParams({ q: query }),
       signal,
-      headers: { "User-Agent": "Findr/1.0" },
     });
 
     if (!response.ok) {
       throw new Error(`DuckDuckGo request failed: ${response.status}`);
     }
 
-    const data = (await response.json()) as DDGResponse;
-    return parseDDGResults(data);
+    const html = await response.text();
+    const parsed = parseDDGHTML(html);
+
+    return parsed.map<PluginResult>((item, idx) => ({
+      title: item.title,
+      description: item.description,
+      url: item.url,
+      score: 10 - idx,
+    }));
   },
 };
 
