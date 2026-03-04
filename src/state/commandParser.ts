@@ -34,7 +34,7 @@ export const parseInput = (rawInput: string): ParsedInput => {
     return { type: "empty" };
   }
 
-  if (!normalized.startsWith(":")) {
+  if (!normalized.startsWith("/")) {
     return { type: "search", query: rawInput };
   }
 
@@ -42,7 +42,7 @@ export const parseInput = (rawInput: string): ParsedInput => {
   if (!body) {
     return {
       type: "error",
-      message: "Command is empty. Try :help for usage.",
+      message: "Command is empty. Try /help for usage.",
     };
   }
 
@@ -122,7 +122,7 @@ export const parseInput = (rawInput: string): ParsedInput => {
     default:
       return {
         type: "error",
-        message: `Unknown command "${verb}". Try :help for available commands.`,
+        message: `Unknown command "${verb}". Try /help for available commands.`,
       };
   }
 };

@@ -13,7 +13,7 @@ export const FeedbackBar = ({ feedback, errorMessage, pluginErrors }: FeedbackBa
   if (!feedback && !errorMessage && pluginErrors.length === 0) {
     return (
       <box height={1} paddingLeft={1}>
-        <text attributes={TextAttributes.DIM}>Type to search or :help for more.</text>
+        <text attributes={TextAttributes.DIM}>Type to search or /help for more.</text>
       </box>
     );
   }

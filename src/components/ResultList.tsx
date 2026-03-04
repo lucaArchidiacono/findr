@@ -55,7 +55,7 @@ export const ResultList = ({ results, selectedIndex, isLoading, focused }: Resul
   }, [results, selectedIndex]);
 
   const showEmptyMessage = results.length === 0;
-  const emptyMessage = isLoading ? "Searching…" : "No results yet. Try a query or :help.";
+  const emptyMessage = isLoading ? "Searching…" : "No results yet. Try a query or /help.";
 
   return (
     <box

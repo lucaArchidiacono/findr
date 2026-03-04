@@ -9,7 +9,7 @@ interface SearchBarProps {
 
 export const SearchBar = ({
   value,
-  placeholder = "Search the web or type :command",
+  placeholder = "Search the web or type /command",
   isLoading,
   focused,
   onChange,

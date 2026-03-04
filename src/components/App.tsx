@@ -21,7 +21,7 @@ const toFeedback = (message: string, tone: "info" | "error" = "info") =>
 const paneOrder: Pane[] = ["search", "results", "plugins"];
 
 const commandHelpText =
-  "Commands -> :enable <id> · :disable <id> · :toggle <id> · :sort relevance|recency|source · :plugins · :clear";
+  "Commands -> /enable <id> · /disable <id> · /toggle <id> · /sort relevance|recency|source · /plugins · /clear";
 
 const pickOpenCommand = () => {
   switch (process.platform) {
@@ -110,7 +110,7 @@ export const App = () => {
     if (!query) {
       dispatch({
         type: "feedback/set",
-        feedback: toFeedback("Enter a search query or :command.", "error"),
+        feedback: toFeedback("Enter a search query or /command.", "error"),
       });
       return;
     }

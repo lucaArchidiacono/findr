@@ -37,7 +37,7 @@ export const StatusBar = ({
         </span>
       </text>
       <text attributes={TextAttributes.DIM}>
-        Use Tab to switch panes · Enter to search/select · :help for commands
+        Use Tab to switch panes · Enter to search/select · /help for commands
       </text>
     </box>
   );

@@ -13,7 +13,7 @@ describe("command parser", () => {
   });
 
   it("parses plugin toggle commands", () => {
-    const parsed = parseInput(":enable brave");
+    const parsed = parseInput("/enable brave");
     expect(parsed).toEqual({
       type: "command",
       command: { kind: "enablePlugin", pluginId: "brave" },
@@ -21,7 +21,7 @@ describe("command parser", () => {
   });
 
   it("parses sort command aliases", () => {
-    const parsed = parseInput(":sort recency");
+    const parsed = parseInput("/sort recency");
     expect(parsed).toEqual({
       type: "command",
       command: { kind: "setSort", sortOrder: "recency" },
@@ -29,12 +29,12 @@ describe("command parser", () => {
   });
 
   it("flags unknown commands", () => {
-    const parsed = parseInput(":unknown stuff");
+    const parsed = parseInput("/unknown stuff");
     expect(parsed.type).toBe("error");
   });
 
   it("handles help alias", () => {
-    const parsed = parseInput(":?");
+    const parsed = parseInput("/?");
     expect(parsed).toEqual({
       type: "command",
       command: { kind: "showHelp" },
