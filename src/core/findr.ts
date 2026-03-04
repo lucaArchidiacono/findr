@@ -55,6 +55,7 @@ export interface PluginDef {
   displayName?: string;
   description?: string;
   enabled?: boolean;
+  apiKeyEnv?: string;
   search: (query: string, signal: AbortSignal) => Promise<PluginResult[]>;
 }
 
@@ -67,6 +68,7 @@ export interface PluginInfo {
   description?: string;
   enabled: boolean;
   source: "builtin" | "user";
+  apiKeyEnv?: string;
 }
 
 // ---- Internal types ----
@@ -77,6 +79,7 @@ interface InternalPlugin {
   description?: string;
   enabled: boolean;
   source: "builtin" | "user";
+  apiKeyEnv?: string;
   search: (query: string, signal: AbortSignal) => Promise<PluginResult[]>;
 }
 
@@ -165,6 +168,7 @@ export namespace Findr {
   const registry = new Map<string, InternalPlugin>();
   const subs = new Map<string, Set<(data: unknown) => void>>();
   let prefsFile = join(homedir(), ".config", "findr", "preferences.json");
+  let secretsFile = join(homedir(), ".config", "findr", "secrets.json");
 
   // -- Pub/Sub --
 
@@ -195,6 +199,7 @@ export namespace Findr {
       description: def.description,
       enabled: def.enabled ?? true,
       source,
+      apiKeyEnv: def.apiKeyEnv,
       search: def.search,
     });
   }
@@ -217,6 +222,7 @@ export namespace Findr {
                   displayName: def.displayName,
                   description: def.description,
                   enabled: def.enabled ?? true,
+                  apiKeyEnv: def.apiKeyEnv,
                   search: def.search,
                 },
                 "user",
@@ -260,17 +266,65 @@ export namespace Findr {
     }
   }
 
+  // -- Secrets --
+
+  export function setSecretsPath(path: string): void {
+    secretsFile = path;
+  }
+
+  export async function loadSecrets(): Promise<void> {
+    try {
+      const file = Bun.file(secretsFile);
+      if (!(await file.exists())) return;
+      const raw = await file.json();
+      const keys = raw?.apiKeys;
+      if (typeof keys !== "object" || keys === null) return;
+
+      for (const [envVar, value] of Object.entries(keys)) {
+        if (typeof value === "string" && value.length > 0) {
+          Bun.env[envVar] = value;
+        }
+      }
+    } catch {
+      // Missing or malformed file — skip
+    }
+  }
+
+  export async function saveSecrets(): Promise<void> {
+    const apiKeys: Record<string, string> = {};
+    for (const plugin of registry.values()) {
+      if (plugin.apiKeyEnv) {
+        const value = Bun.env[plugin.apiKeyEnv];
+        if (value) {
+          apiKeys[plugin.apiKeyEnv] = value;
+        }
+      }
+    }
+    const data = JSON.stringify({ apiKeys }, null, 2);
+    await Bun.write(secretsFile, data, { createPath: true });
+  }
+
+  export function setApiKey(envVarName: string, value: string): void {
+    Bun.env[envVarName] = value;
+    saveSecrets().catch(() => {});
+  }
+
+  export function getApiKey(envVarName: string): string | undefined {
+    return Bun.env[envVarName];
+  }
+
   // -- Plugin management --
 
   export function list(): PluginInfo[] {
     return Array.from(registry.values())
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(({ name, displayName, description, enabled, source }) => ({
+      .map(({ name, displayName, description, enabled, source, apiKeyEnv }) => ({
         name,
         displayName,
         description,
         enabled,
         source,
+        apiKeyEnv,
       }));
   }
 
@@ -283,6 +337,7 @@ export namespace Findr {
       description: p.description,
       enabled: p.enabled,
       source: p.source,
+      apiKeyEnv: p.apiKeyEnv,
     };
   }
 

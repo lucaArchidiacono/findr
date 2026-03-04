@@ -22,6 +22,10 @@ export interface AppState {
   feedback?: CommandFeedback;
   errorMessage?: string;
   activePane: "search" | "results" | "plugins";
+  showSettings: boolean;
+  settingsIndex: number;
+  settingsEditing: boolean;
+  settingsEditValue: string;
 }
 
 export type AppAction =
@@ -43,7 +47,14 @@ export type AppAction =
   | { type: "console/toggle"; visible: boolean }
   | { type: "filter/activate" }
   | { type: "filter/change"; text: string }
-  | { type: "filter/deactivate" };
+  | { type: "filter/deactivate" }
+  | { type: "settings/show" }
+  | { type: "settings/hide" }
+  | { type: "settings/setIndex"; index: number; total: number }
+  | { type: "settings/startEdit"; currentValue: string }
+  | { type: "settings/changeEdit"; value: string }
+  | { type: "settings/cancelEdit" }
+  | { type: "settings/commitEdit" };
 
 export const createInitialState = (): AppState => ({
   inputValue: "",
@@ -60,6 +71,10 @@ export const createInitialState = (): AppState => ({
   filterActive: false,
   filterText: "",
   activePane: "search",
+  showSettings: false,
+  settingsIndex: 0,
+  settingsEditing: false,
+  settingsEditValue: "",
 });
 
 const clampIndex = (index: number, max: number) => {
@@ -204,6 +219,49 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         ...state,
         filterActive: false,
         filterText: "",
+      };
+    case "settings/show":
+      return {
+        ...state,
+        showSettings: true,
+        settingsIndex: 0,
+        settingsEditing: false,
+        settingsEditValue: "",
+      };
+    case "settings/hide":
+      return {
+        ...state,
+        showSettings: false,
+        settingsEditing: false,
+        settingsEditValue: "",
+      };
+    case "settings/setIndex":
+      return {
+        ...state,
+        settingsIndex: clampIndex(action.index, action.total),
+      };
+    case "settings/startEdit":
+      return {
+        ...state,
+        settingsEditing: true,
+        settingsEditValue: action.currentValue,
+      };
+    case "settings/changeEdit":
+      return {
+        ...state,
+        settingsEditValue: action.value,
+      };
+    case "settings/cancelEdit":
+      return {
+        ...state,
+        settingsEditing: false,
+        settingsEditValue: "",
+      };
+    case "settings/commitEdit":
+      return {
+        ...state,
+        settingsEditing: false,
+        settingsEditValue: "",
       };
     default:
       return state;

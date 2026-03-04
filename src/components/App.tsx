@@ -9,6 +9,8 @@ import ResultList from "./ResultList";
 import PluginPanel from "./PluginPanel";
 import StatusBar from "./StatusBar";
 import FeedbackBar from "./FeedbackBar";
+import SettingsPanel from "./SettingsPanel";
+import { maskApiKey } from "../utils/formatting";
 
 type Pane = AppState["activePane"];
 
@@ -21,7 +23,7 @@ const toFeedback = (message: string, tone: "info" | "error" = "info") =>
 const paneOrder: Pane[] = ["search", "results", "plugins"];
 
 const commandHelpText =
-  "Commands -> /enable <id> · /disable <id> · /toggle <id> · /sort relevance|recency|source · /plugins · /clear";
+  "Commands -> /enable <id> · /disable <id> · /toggle <id> · /sort relevance|recency|source · /plugins · /settings · /clear";
 
 const pickOpenCommand = () => {
   switch (process.platform) {
@@ -285,6 +287,13 @@ export const App = () => {
       case "toggleConsole":
         dispatch({ type: "console/toggle", visible: !state.showConsole });
         return "clear";
+      case "toggleSettings":
+        if (state.showSettings) {
+          dispatch({ type: "settings/hide" });
+        } else {
+          dispatch({ type: "settings/show" });
+        }
+        return "clear";
       default:
         return "keep";
     }
@@ -333,6 +342,34 @@ export const App = () => {
     }
   };
 
+  const getSettingsEntries = () => {
+    return Findr.list()
+      .filter((p) => p.apiKeyEnv)
+      .map((p) => ({
+        pluginName: p.name,
+        pluginDisplayName: p.displayName,
+        envVarName: p.apiKeyEnv!,
+        isConfigured: Boolean(Findr.getApiKey(p.apiKeyEnv!)),
+        maskedValue: maskApiKey(Findr.getApiKey(p.apiKeyEnv!)),
+      }));
+  };
+
+  const handleSettingsEditSubmit = () => {
+    const entries = getSettingsEntries();
+    const entry = entries[state.settingsIndex];
+    if (entry && state.settingsEditValue.trim()) {
+      Findr.setApiKey(entry.envVarName, state.settingsEditValue.trim());
+    }
+    dispatch({ type: "settings/commitEdit" });
+    dispatch({
+      type: "feedback/set",
+      feedback: toFeedback(
+        entry ? `Saved API key for ${entry.pluginDisplayName}.` : "Saved.",
+        "info",
+      ),
+    });
+  };
+
   useKeyboard((key) => {
     if (!key) {
       return;
@@ -357,6 +394,38 @@ export const App = () => {
       abortControllerRef.current?.abort();
       renderer?.destroy();
       process.exit(0);
+    }
+
+    if (state.showSettings) {
+      if (state.settingsEditing) {
+        if (key.name === "escape") {
+          dispatch({ type: "settings/cancelEdit" });
+        }
+        return;
+      }
+      const settingsEntries = getSettingsEntries();
+      if (key.name === "escape") {
+        dispatch({ type: "settings/hide" });
+      } else if (key.name === "down" || key.name === "j") {
+        dispatch({
+          type: "settings/setIndex",
+          index: state.settingsIndex + 1,
+          total: settingsEntries.length,
+        });
+      } else if (key.name === "up" || key.name === "k") {
+        dispatch({
+          type: "settings/setIndex",
+          index: state.settingsIndex - 1,
+          total: settingsEntries.length,
+        });
+      } else if (key.name === "enter" || key.name === "return") {
+        const entry = settingsEntries[state.settingsIndex];
+        if (entry) {
+          const currentValue = Findr.getApiKey(entry.envVarName) ?? "";
+          dispatch({ type: "settings/startEdit", currentValue });
+        }
+      }
+      return;
     }
 
     if (key.name === "tab") {
@@ -433,45 +502,60 @@ export const App = () => {
         sortOrder={state.sortOrder}
         enabledPlugins={state.enabledPluginIds.length}
         totalPlugins={allPlugins.length}
-        activePane={state.activePane}
+        activePane={state.showSettings ? "search" : state.activePane}
       />
 
-      <box flexGrow={1} flexDirection="row" marginTop={1}>
-        <ResultList
-          results={state.results}
-          selectedIndex={state.selectedIndex}
-          isLoading={state.isLoading}
-          focused={state.activePane === "results"}
-          filterActive={state.filterActive}
-          filterText={state.filterText}
-          onFilterChange={(text) => dispatch({ type: "filter/change", text })}
-        />
-        <PluginPanel
-          plugins={pluginsForPanel}
-          enabledPluginIds={state.enabledPluginIds}
-          selectedIndex={state.pluginPanelIndex}
-          visible={state.showPluginPanel}
-          focused={state.activePane === "plugins"}
-        />
-      </box>
+      {state.showSettings ? (
+        <box flexGrow={1} marginTop={1}>
+          <SettingsPanel
+            entries={getSettingsEntries()}
+            selectedIndex={state.settingsIndex}
+            editing={state.settingsEditing}
+            editValue={state.settingsEditValue}
+            onEditChange={(value) => dispatch({ type: "settings/changeEdit", value })}
+            onEditSubmit={handleSettingsEditSubmit}
+          />
+        </box>
+      ) : (
+        <>
+          <box flexGrow={1} flexDirection="row" marginTop={1}>
+            <ResultList
+              results={state.results}
+              selectedIndex={state.selectedIndex}
+              isLoading={state.isLoading}
+              focused={state.activePane === "results"}
+              filterActive={state.filterActive}
+              filterText={state.filterText}
+              onFilterChange={(text) => dispatch({ type: "filter/change", text })}
+            />
+            <PluginPanel
+              plugins={pluginsForPanel}
+              enabledPluginIds={state.enabledPluginIds}
+              selectedIndex={state.pluginPanelIndex}
+              visible={state.showPluginPanel}
+              focused={state.activePane === "plugins"}
+            />
+          </box>
 
-      <box marginTop={1}>
-        <FeedbackBar
-          feedback={state.feedback}
-          errorMessage={state.errorMessage}
-          pluginErrors={pluginErrorMessages}
-        />
-      </box>
+          <box marginTop={1}>
+            <FeedbackBar
+              feedback={state.feedback}
+              errorMessage={state.errorMessage}
+              pluginErrors={pluginErrorMessages}
+            />
+          </box>
 
-      <box marginTop={1}>
-        <SearchBar
-          value={state.inputValue}
-          onChange={updateInputValue}
-          onSubmit={handleSubmit}
-          isLoading={state.isLoading}
-          focused={state.activePane === "search"}
-        />
-      </box>
+          <box marginTop={1}>
+            <SearchBar
+              value={state.inputValue}
+              onChange={updateInputValue}
+              onSubmit={handleSubmit}
+              isLoading={state.isLoading}
+              focused={state.activePane === "search"}
+            />
+          </box>
+        </>
+      )}
     </box>
   );
 };

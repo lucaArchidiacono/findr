@@ -4,6 +4,9 @@ import { ConsolePosition } from "@opentui/core";
 import { registerBuiltinPlugins } from "./plugins/builtin";
 import { Findr } from "./core/findr";
 
+// Load secrets first so API keys are available as env vars
+await Findr.loadSecrets();
+
 // Register builtin plugins, load user plugins, then restore saved preferences
 registerBuiltinPlugins();
 await Findr.loadUserPlugins();

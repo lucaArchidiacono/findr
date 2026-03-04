@@ -40,4 +40,25 @@ describe("command parser", () => {
       command: { kind: "showHelp" },
     });
   });
+
+  it("parses /settings command", () => {
+    expect(parseInput("/settings")).toEqual({
+      type: "command",
+      command: { kind: "toggleSettings" },
+    });
+  });
+
+  it("parses /keys alias", () => {
+    expect(parseInput("/keys")).toEqual({
+      type: "command",
+      command: { kind: "toggleSettings" },
+    });
+  });
+
+  it("parses /config alias", () => {
+    expect(parseInput("/config")).toEqual({
+      type: "command",
+      command: { kind: "toggleSettings" },
+    });
+  });
 });

@@ -522,3 +522,67 @@ describe("preferences", () => {
     expect(Findr.get("a")!.enabled).toBe(true);
   });
 });
+
+// ---- Secrets ----
+
+describe("secrets", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "findr-secrets-"));
+    Findr.setSecretsPath(join(tempDir, "secrets.json"));
+  });
+
+  it("saves and loads API keys", async () => {
+    Findr.register({
+      name: "test-plugin",
+      apiKeyEnv: "TEST_API_KEY_SAVE",
+      search: async () => [],
+    });
+
+    Findr.setApiKey("TEST_API_KEY_SAVE", "sk-test-12345");
+    await delay(50);
+
+    const file = Bun.file(join(tempDir, "secrets.json"));
+    expect(await file.exists()).toBe(true);
+    const data = await file.json();
+    expect(data.apiKeys["TEST_API_KEY_SAVE"]).toBe("sk-test-12345");
+  });
+
+  it("loadSecrets sets env vars", async () => {
+    await Bun.write(
+      join(tempDir, "secrets.json"),
+      JSON.stringify({ apiKeys: { FINDR_TEST_SECRET: "secret-value" } }),
+    );
+
+    await Findr.loadSecrets();
+    expect(Bun.env["FINDR_TEST_SECRET"]).toBe("secret-value");
+    delete Bun.env["FINDR_TEST_SECRET"];
+  });
+
+  it("loadSecrets handles missing file gracefully", async () => {
+    Findr.setSecretsPath(join(tempDir, "nonexistent.json"));
+    await Findr.loadSecrets(); // should not throw
+  });
+
+  it("loadSecrets handles malformed JSON gracefully", async () => {
+    await Bun.write(join(tempDir, "secrets.json"), "not json");
+    await Findr.loadSecrets(); // should not throw
+  });
+
+  it("getApiKey returns undefined for unset keys", () => {
+    expect(Findr.getApiKey("FINDR_NONEXISTENT_KEY_12345")).toBeUndefined();
+  });
+
+  it("apiKeyEnv is included in plugin list and get", () => {
+    Findr.register({
+      name: "keyed",
+      apiKeyEnv: "KEYED_API_KEY",
+      search: async () => [],
+    });
+
+    const listed = Findr.list().find((p) => p.name === "keyed");
+    expect(listed!.apiKeyEnv).toBe("KEYED_API_KEY");
+    expect(Findr.get("keyed")!.apiKeyEnv).toBe("KEYED_API_KEY");
+  });
+});

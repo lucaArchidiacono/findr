@@ -6,6 +6,7 @@ const perplexityPlugin: PluginDef = {
   description:
     "Uses Vercel AI SDK with Zod schema to fetch structured web results (requires PERPLEXITY_API_KEY).",
   enabled: false,
+  apiKeyEnv: "PERPLEXITY_API_KEY",
   search: async (query, signal) => {
     if (signal.aborted) return [];
 

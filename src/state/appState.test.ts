@@ -89,3 +89,61 @@ describe("appState reducer", () => {
     expect(updated.pluginPanelIndex).toBe(0);
   });
 });
+
+describe("settings state", () => {
+  it("shows settings panel", () => {
+    const { state } = setupState();
+    const next = appReducer(state, { type: "settings/show" });
+    expect(next.showSettings).toBe(true);
+    expect(next.settingsIndex).toBe(0);
+    expect(next.settingsEditing).toBe(false);
+  });
+
+  it("hides settings panel", () => {
+    const { state } = setupState();
+    const shown = appReducer(state, { type: "settings/show" });
+    const hidden = appReducer(shown, { type: "settings/hide" });
+    expect(hidden.showSettings).toBe(false);
+  });
+
+  it("navigates settings index with wrapping", () => {
+    const { state } = setupState();
+    const shown = appReducer(state, { type: "settings/show" });
+    const moved = appReducer(shown, { type: "settings/setIndex", index: 1, total: 3 });
+    expect(moved.settingsIndex).toBe(1);
+
+    const wrapped = appReducer(shown, { type: "settings/setIndex", index: 2, total: 2 });
+    expect(wrapped.settingsIndex).toBe(0);
+  });
+
+  it("starts and cancels editing", () => {
+    const { state } = setupState();
+    const editing = appReducer(state, {
+      type: "settings/startEdit",
+      currentValue: "sk-old",
+    });
+    expect(editing.settingsEditing).toBe(true);
+    expect(editing.settingsEditValue).toBe("sk-old");
+
+    const cancelled = appReducer(editing, { type: "settings/cancelEdit" });
+    expect(cancelled.settingsEditing).toBe(false);
+    expect(cancelled.settingsEditValue).toBe("");
+  });
+
+  it("commits editing and clears edit state", () => {
+    const { state } = setupState();
+    const editing = appReducer(state, {
+      type: "settings/startEdit",
+      currentValue: "",
+    });
+    const typed = appReducer(editing, {
+      type: "settings/changeEdit",
+      value: "sk-new",
+    });
+    expect(typed.settingsEditValue).toBe("sk-new");
+
+    const committed = appReducer(typed, { type: "settings/commitEdit" });
+    expect(committed.settingsEditing).toBe(false);
+    expect(committed.settingsEditValue).toBe("");
+  });
+});

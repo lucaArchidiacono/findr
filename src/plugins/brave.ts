@@ -53,6 +53,7 @@ const bravePlugin: PluginDef = {
   displayName: "Brave",
   description: "Queries the Brave Search API (requires BRAVE_API_KEY).",
   enabled: false,
+  apiKeyEnv: "BRAVE_API_KEY",
   search: async (query, signal) => {
     if (signal.aborted) return [];
 

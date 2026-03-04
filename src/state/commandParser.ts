@@ -8,7 +8,8 @@ export type Command =
   | { kind: "togglePluginPanel" }
   | { kind: "clearResults" }
   | { kind: "showHelp" }
-  | { kind: "toggleConsole" };
+  | { kind: "toggleConsole" }
+  | { kind: "toggleSettings" };
 
 export type ParsedInput =
   | { type: "command"; command: Command }
@@ -112,6 +113,13 @@ export const parseInput = (rawInput: string): ParsedInput => {
       return {
         type: "command",
         command: { kind: "toggleConsole" },
+      };
+    case "settings":
+    case "config":
+    case "keys":
+      return {
+        type: "command",
+        command: { kind: "toggleSettings" },
       };
     case "help":
     case "?":
