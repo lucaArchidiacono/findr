@@ -17,15 +17,19 @@ jobs:
           - os: macos-latest
             target: bun-darwin-arm64
             artifact: findr-darwin-arm64
-          - os: macos-13
+            cross_pkg: ""
+          - os: macos-latest
             target: bun-darwin-x64
             artifact: findr-darwin-x64
+            cross_pkg: "@opentui/core-darwin-x64@0.1.30"
           - os: ubuntu-latest
             target: bun-linux-x64
             artifact: findr-linux-x64
+            cross_pkg: ""
           - os: ubuntu-24.04-arm
             target: bun-linux-arm64
             artifact: findr-linux-arm64
+            cross_pkg: ""
 
     runs-on: ${{ matrix.os }}
 
@@ -39,10 +43,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install cross-platform dependencies
+        if: matrix.cross_pkg != ''
+        run: bun add ${{ matrix.cross_pkg }}
+
       - name: Build binary
         run: |
           mkdir -p dist
-          bun build --compile src/index.tsx --outfile dist/${{ matrix.artifact }}
+          bun build --compile --target=${{ matrix.target }} src/index.tsx --outfile dist/${{ matrix.artifact }}
 
       - name: Package tarball
         run: |
