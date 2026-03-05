@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
-import { useKeyboard, useRenderer } from "@opentui/react";
+import { useAppContext, useKeyboard, useRenderer } from "@opentui/react";
 import type { ParsedInput } from "../state/commandParser";
 import { parseInput } from "../state/commandParser";
 import { appReducer, createInitialState, type AppAction, type AppState } from "../state/appState";
@@ -11,6 +11,7 @@ import StatusBar from "./StatusBar";
 import FeedbackBar from "./FeedbackBar";
 import SettingsPanel from "./SettingsPanel";
 import { maskApiKey } from "../utils/formatting";
+import { readClipboard, writeClipboard } from "../utils/clipboard";
 
 type Pane = AppState["activePane"];
 
@@ -55,6 +56,7 @@ export const App = () => {
   const [state, dispatch] = useReducer(appReducer, undefined, () => createInitialState());
   const abortControllerRef = useRef<AbortController | null>(null);
   const renderer = useRenderer();
+  const { keyHandler } = useAppContext();
 
   useEffect(() => {
     if (state.showConsole) {
@@ -370,9 +372,74 @@ export const App = () => {
     });
   };
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const getActiveTextField = (): { value: string; update: (v: string) => void } | null => {
+    const s = stateRef.current;
+    if (s.showSettings && s.settingsEditing) {
+      return {
+        value: s.settingsEditValue,
+        update: (v) => dispatch({ type: "settings/changeEdit", value: v }),
+      };
+    }
+    if (s.activePane === "results" && s.filterActive) {
+      return {
+        value: s.filterText,
+        update: (v) => dispatch({ type: "filter/change", text: v }),
+      };
+    }
+    if (s.activePane === "search") {
+      return {
+        value: s.inputValue,
+        update: (v) => dispatch({ type: "input/change", value: v }),
+      };
+    }
+    return null;
+  };
+
+  // Handle terminal paste events (Cmd+V on macOS triggers bracketed paste)
+  useEffect(() => {
+    if (!keyHandler) return;
+    const onPaste = (event: { text: string }) => {
+      const field = getActiveTextField();
+      if (field) {
+        field.update(field.value + event.text);
+      }
+    };
+    keyHandler.on("paste", onPaste);
+    return () => {
+      keyHandler.off("paste", onPaste);
+    };
+  }, [keyHandler]);
+
   useKeyboard((key) => {
     if (!key) {
       return;
+    }
+
+    // Clipboard: Ctrl+V paste, Cmd+C copy, Cmd+X cut
+    const isCopy = key.meta && !key.ctrl && key.name === "c";
+    const isPaste = !key.meta && key.ctrl && key.name === "v";
+    const isCut = key.meta && !key.ctrl && key.name === "x";
+
+    if (isCopy || isPaste || isCut) {
+      const field = getActiveTextField();
+      if (field) {
+        if (isCopy) {
+          writeClipboard(field.value);
+        } else if (isCut) {
+          writeClipboard(field.value);
+          field.update("");
+        } else if (isPaste) {
+          readClipboard().then((text) => {
+            if (text) {
+              field.update(field.value + text);
+            }
+          });
+        }
+        return;
+      }
     }
 
     if (state.activePane === "search") {
