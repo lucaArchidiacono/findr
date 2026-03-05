@@ -45,7 +45,7 @@ jobs:
 
       - name: Install cross-platform dependencies
         if: matrix.cross_pkg != ''
-        run: bun add ${{ matrix.cross_pkg }}
+        run: npm install --no-save --force ${{ matrix.cross_pkg }}
 
       - name: Build binary
         run: |
